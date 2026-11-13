@@ -43,11 +43,20 @@ la courbe émetteur, poids de distance des comparables, champion, confiance.
 
 ## Démarrage
 
-    pip install -e ".[ml,pg,mcp,dev]"
+    pip install -e ".[ml,pg,mcp,ui,dev]"
     python scripts/make_synthetic.py        # univers synthétique dans data/
     python scripts/backtest.py --ml         # erreur et couverture hors échantillon
     python scripts/ablation.py --ml         # effet de chaque amélioration
     pytest
+
+Interface de démonstration :
+
+    scripts/start.sh                        # démarre, affiche l'adresse
+    scripts/status.sh
+    scripts/stop.sh
+
+Installation, configuration, arrêt et dépannage :
+[docs/LANCEMENT.md](docs/LANCEMENT.md).
 
 Serveur MCP sur données synthétiques :
 
@@ -75,7 +84,8 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
       learning/             retours utilisateurs
       mcp_server/           outils MCP
       service.py            façade unique (utilisable sans MCP ni LLM)
-    scripts/                données synthétiques, backtest, mesure des améliorations
+    app/                    interface Streamlit
+    scripts/                démarrage et arrêt, données synthétiques, backtest, mesures
     tests/
 
 ## Outils MCP
@@ -87,6 +97,6 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 
 ## État
 
-Le squelette tourne de bout en bout sur données synthétiques. Les erreurs
+La solution tourne de bout en bout sur données synthétiques, interface comprise. Les erreurs
 mesurées sur ces données ne disent rien de la précision réelle : elles
 valident la chaîne, pas la méthode.
