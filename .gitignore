@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+catboost_info/
+# Données et journaux locaux : jamais dans le dépôt
+data/
+runs/
+.env

@@ -1,0 +1,39 @@
+# Correspondance entre le schéma réel de la base et le schéma canonique.
+# C'est LE fichier à remplir le matin du jour 1, une fois le schéma connu.
+# Tout le reste du code ne connaît que les noms canoniques.
+
+source:
+  # Requête ou table lue dans PostgreSQL (rôle en lecture seule).
+  query: "SELECT * FROM market.bonds"
+  # Date de valorisation, utilisée si la maturité est fournie comme une date.
+  as_of: null            # ex. 2026-11-20 ; null = date du jour
+
+# canonique: colonne réelle
+columns:
+  isin: isin
+  issuer: issuer_name
+  sector: sector
+  country: country
+  currency: currency
+  rating: rating
+  seniority: seniority
+  coupon_type: coupon_type
+  callable: is_callable
+  maturity_years: null          # laisser null si seule la date existe
+  maturity_date: maturity_date  # utilisée si maturity_years est null
+  amount_outstanding: amount_outstanding
+  z_spread: z_spread
+
+# Traduction des valeurs réelles vers les valeurs canoniques.
+values:
+  seniority:
+    "Sr Unsecured": SENIOR_UNSECURED
+    "Sr Preferred": SENIOR_PREFERRED
+    "Sr Non Preferred": SENIOR_NON_PREFERRED
+    "Secured": SECURED
+    "Subordinated": SUBORDINATED
+    "Tier 2": TIER2
+    "AT1": AT1
+  coupon_type:
+    "Fixed": FIXED
+    "Floating": FLOATING
