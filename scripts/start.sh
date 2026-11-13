@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
-PORT="${BONDALORIANS_PORT:-8501}"
+PORT="${BONDALORIANS_PORT:-8551}"
 mkdir -p runs
 
 if [ -f runs/ui.pid ] && kill -0 "$(cat runs/ui.pid)" 2>/dev/null; then
@@ -16,7 +16,7 @@ fi
 # Un autre programme (par exemple une autre application Streamlit) occupe-t-il le port ?
 if curl -s -o /dev/null "http://localhost:$PORT" 2>/dev/null; then
   echo "Le port $PORT est déjà utilisé par un autre programme : ce n'est pas cette interface." >&2
-  echo "Choisissez un autre port dans .env (BONDALORIANS_PORT=8502), ou arrêtez l'autre programme." >&2
+  echo "Choisissez un autre port dans .env (BONDALORIANS_PORT=8552), ou arrêtez l'autre programme." >&2
   exit 1
 fi
 

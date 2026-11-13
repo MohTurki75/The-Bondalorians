@@ -57,7 +57,7 @@ Autres réglages : `BONDALORIANS_USE_ML=0` coupe CatBoost (préparation en
 
 Le script lit `.env`, génère les données synthétiques si aucune source n'est
 configurée, lance l'interface en arrière-plan et affiche son adresse, par
-défaut http://localhost:8501. Le premier affichage prend jusqu'à une minute :
+défaut http://localhost:8551. Le premier affichage prend jusqu'à une minute :
 c'est la préparation des modèles et du backtest.
 
 ## 4. Vérifier
@@ -128,14 +128,15 @@ défini les variables d'environnement :
     python scripts/make_synthetic.py
     python -m streamlit run app/main.py
 
-Arrêt : Ctrl+C dans le terminal.
+L'interface s'ouvre sur http://localhost:8551 (port fixé dans
+`.streamlit/config.toml`). Arrêt : Ctrl+C dans le terminal.
 
 ## 9. Problèmes courants
 
 | Symptôme | Cause probable | Remède |
 |---|---|---|
 | « Déjà démarré » | Une interface tourne déjà | `scripts/stop.sh` puis `scripts/start.sh` |
-| « Le port 8501 est déjà utilisé » | Une autre application Streamlit tourne sur ce port | Mettre `BONDALORIANS_PORT=8502` dans `.env`, ou arrêter l'autre application |
+| « Le port 8551 est déjà utilisé » | Une autre application Streamlit tourne sur ce port | Mettre `BONDALORIANS_PORT=8552` dans `.env`, ou arrêter l'autre application |
 | La page affiche une autre application | Même cause : le navigateur ouvre l'application qui occupe le port | Vérifier l'adresse affichée par `scripts/start.sh` |
 | « Échec du démarrage » | Port occupé ou dépendance manquante | Lire `runs/ui.log` ; changer `BONDALORIANS_PORT` |
 | « Aucune source de données » | Ni base, ni CSV, ni données synthétiques | `python scripts/make_synthetic.py` ou renseigner `.env` |
