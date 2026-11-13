@@ -149,7 +149,7 @@ changent qu'au prochain ajustement complet ; aucune promotion n'est automatique.
 
 Avant le hackathon :
 
-- interface de démonstration (Streamlit) branchée sur `service.py` ;
+- pilotage du serveur MCP depuis un vrai client avec le LLM retenu ;
 - règles de paliers et seuils de contrôle revus par le BA ;
 - taxonomie sectorielle et correspondance pays vers région dans `ref` ;
 - script de promotion d'un modèle dans `app.model_registry`.
