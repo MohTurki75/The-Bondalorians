@@ -13,6 +13,13 @@ if [ -f runs/ui.pid ] && kill -0 "$(cat runs/ui.pid)" 2>/dev/null; then
   exit 0
 fi
 
+# Un autre programme (par exemple une autre application Streamlit) occupe-t-il le port ?
+if curl -s -o /dev/null "http://localhost:$PORT" 2>/dev/null; then
+  echo "Le port $PORT est déjà utilisé par un autre programme : ce n'est pas cette interface." >&2
+  echo "Choisissez un autre port dans .env (BONDALORIANS_PORT=8502), ou arrêtez l'autre programme." >&2
+  exit 1
+fi
+
 # Sans base ni fichier configuré, on travaille sur des données d'essai.
 if [ -z "${BONDALORIANS_DSN:-}" ] && [ -z "${BONDALORIANS_CSV:-}" ] && [ ! -f data/synthetic_bonds.csv ]; then
   echo "Aucune source configurée : génération de données synthétiques."
@@ -25,6 +32,7 @@ nohup python -m streamlit run app/main.py \
 echo $! > runs/ui.pid
 
 for _ in $(seq 1 30); do
+  if ! kill -0 "$(cat runs/ui.pid)" 2>/dev/null; then break; fi
   if curl -fs "http://localhost:$PORT/_stcore/health" >/dev/null 2>&1; then
     echo "Interface démarrée (PID $(cat runs/ui.pid)) : http://localhost:$PORT"
     echo "Premier affichage : jusqu'à une minute, le temps de préparer les modèles."

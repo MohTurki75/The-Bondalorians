@@ -135,6 +135,8 @@ Arrêt : Ctrl+C dans le terminal.
 | Symptôme | Cause probable | Remède |
 |---|---|---|
 | « Déjà démarré » | Une interface tourne déjà | `scripts/stop.sh` puis `scripts/start.sh` |
+| « Le port 8501 est déjà utilisé » | Une autre application Streamlit tourne sur ce port | Mettre `BONDALORIANS_PORT=8502` dans `.env`, ou arrêter l'autre application |
+| La page affiche une autre application | Même cause : le navigateur ouvre l'application qui occupe le port | Vérifier l'adresse affichée par `scripts/start.sh` |
 | « Échec du démarrage » | Port occupé ou dépendance manquante | Lire `runs/ui.log` ; changer `BONDALORIANS_PORT` |
 | « Aucune source de données » | Ni base, ni CSV, ni données synthétiques | `python scripts/make_synthetic.py` ou renseigner `.env` |
 | « Colonnes canoniques manquantes » | `schema_map.yaml` ne correspond pas au schéma | Corriger la section `columns` |
