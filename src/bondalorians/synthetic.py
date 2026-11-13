@@ -26,7 +26,11 @@ SENIORITY_ADD = {  # (écart en log, crans de notation en plus)
 }
 
 
-def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42) -> pd.DataFrame:
+def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42,
+                  noise_by_rating: float = 0.0) -> pd.DataFrame:
+    """`noise_by_rating` > 0 rend le bruit croissant avec la dégradation de la
+    notation (écart-type ajouté par cran au-delà de AA). Sert à vérifier que le
+    modèle de difficulté détecte des cas inégalement prévisibles."""
     rng = np.random.default_rng(seed)
     sectors = list(SECTORS)
     issuers = pd.DataFrame({
@@ -64,7 +68,7 @@ def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42) -> 
             + add_log + SECTORS[issuer["sector"]]
             + {"EUR": 0.0, "USD": 0.06, "GBP": 0.10}[currency]
             + 0.05 * callable_
-            + issuer["alpha"] + rng.normal(0.0, 0.08)
+            + issuer["alpha"] + rng.normal(0.0, 0.08 + noise_by_rating * max(notch - 3, 0))
         )
         rows.append({
             "isin": f"XS{i:010d}",

@@ -7,9 +7,9 @@ from bondalorians.service import Service
 
 
 @pytest.fixture()
-def service(universe, tmp_path):
+def service(universe, fast_settings, tmp_path):
     return Service(
-        universe, use_ml=False,
+        universe, fast_settings, use_ml=False,
         run_store=JsonlStore(tmp_path / "runs.jsonl"),
         feedback_store=JsonlStore(tmp_path / "feedback.jsonl"),
     )
@@ -25,10 +25,10 @@ def test_estimate_is_logged_and_replayable(service, new_bond):
     assert service.validate_estimate(result["run_id"])["controls"]
 
 
-def test_trade_feedback_moves_estimate_more_than_opinion(universe, new_bond, tmp_path):
+def test_trade_feedback_moves_estimate_more_than_opinion(universe, fast_settings, new_bond, tmp_path):
     moves = {}
     for kind in ("trade", "opinion"):
-        svc = Service(universe, use_ml=False,
+        svc = Service(universe, fast_settings, use_ml=False,
                       run_store=JsonlStore(tmp_path / f"r_{kind}.jsonl"),
                       feedback_store=JsonlStore(tmp_path / f"f_{kind}.jsonl"))
         before = svc.estimate(new_bond)
@@ -58,6 +58,7 @@ def test_search_and_describe(service):
         service.search_bonds({"z_spread": 100})
     assert service.describe_universe()["n_bonds"] == 1500
     assert {row["palier"] for row in service.backtest_summary()} >= {"simple", "emetteur_inconnu"}
+    assert service.calibration_report()["issuer_shrinkage"]["estimated"] is True
 
 
 def test_mcp_server_exposes_business_tools(service, new_bond, monkeypatch):
@@ -67,7 +68,7 @@ def test_mcp_server_exposes_business_tools(service, new_bond, monkeypatch):
     assert names == {
         "describe_universe", "get_bond", "search_bonds", "classify_complexity", "find_comparables",
         "estimate_zspread", "validate_estimate", "explain_estimate", "submit_feedback", "get_run",
-        "backtest_summary",
+        "backtest_summary", "calibration_report",
     }
     result = server.estimate_zspread(characteristics=new_bond)
     assert server.validate_estimate(result["run_id"])["run_id"] == result["run_id"]

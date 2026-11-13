@@ -1,7 +1,13 @@
-"""Modèle challenger : CatBoost sur le log du Z-Spread, avec contraintes de monotonie.
+"""Modèles CatBoost (dépendance optionnelle).
 
-L'émetteur n'est volontairement pas une variable : le modèle doit généraliser à
-un émetteur jamais vu. CatBoost est une dépendance optionnelle.
+- SpreadGBM (modèle B) : prédit le log du Z-Spread, indépendamment du modèle A.
+  Il sert de challenger et de contrôle de désaccord.
+- SpreadCorrector (modèle C) : prédit l'erreur résiduelle du modèle A à partir
+  des caractéristiques et de la qualité des comparables. Il corrige le modèle
+  transparent au lieu de le concurrencer.
+
+L'émetteur n'est jamais une variable : les modèles doivent généraliser à un
+émetteur inconnu.
 """
 
 from __future__ import annotations
@@ -9,8 +15,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-NUMERIC = ["notch", "log_t", "sen_rank", "log_amt", "callable_num"]
 CATEGORICAL = ["sector", "country", "currency", "coupon_type", "seniority"]
+CORE_FEATURES = ["log_a", "lam", "r_issuer", "r_peers", "n_eff", "mean_distance", "n_issuer", "filter_level"]
 
 
 def catboost_available() -> bool:
@@ -23,15 +29,29 @@ def catboost_available() -> bool:
 
 def _features(df: pd.DataFrame) -> pd.DataFrame:
     x = pd.DataFrame({
-        "notch": df["notch"].astype(float),
-        "log_t": df["log_t"].astype(float),
-        "sen_rank": df["sen_rank"].astype(float),
-        "log_amt": df["log_amt"].astype(float),
-        "callable_num": df["callable"].astype(float),
+        "notch": df["notch"].to_numpy(dtype=float),
+        "log_t": df["log_t"].to_numpy(dtype=float),
+        "sen_rank": df["sen_rank"].to_numpy(dtype=float),
+        "log_amt": df["log_amt"].to_numpy(dtype=float),
+        "callable_num": df["callable"].to_numpy(dtype=float),
     })
     for column in CATEGORICAL:
         x[column] = df[column].astype(str).to_numpy()
     return x
+
+
+def _corrector_features(df: pd.DataFrame, cores: list[dict]) -> pd.DataFrame:
+    x = _features(df)
+    for name in CORE_FEATURES:
+        x[name] = np.array([core[name] for core in cores], dtype=float)
+    return x
+
+
+def _shap(model, x: pd.DataFrame) -> dict[str, float]:
+    from catboost import Pool
+
+    values = model.get_feature_importance(Pool(x, cat_features=CATEGORICAL), type="ShapValues")[0]
+    return {name: float(v) for name, v in zip(list(x.columns), values[:-1])}
 
 
 class SpreadGBM:
@@ -62,8 +82,28 @@ class SpreadGBM:
 
     def shap_log(self, target: dict) -> dict[str, float]:
         """Contributions SHAP en log (donc multiplicatives sur le spread)."""
-        from catboost import Pool
+        return _shap(self.model_, _features(pd.DataFrame([target])))
 
-        x = _features(pd.DataFrame([target]))
-        values = self.model_.get_feature_importance(Pool(x, cat_features=CATEGORICAL), type="ShapValues")[0]
-        return {name: float(v) for name, v in zip(list(x.columns), values[:-1])}
+
+class SpreadCorrector:
+    """Apprend `log(spread observé) - log(modèle A)` ; volontairement peu profond."""
+
+    def __init__(self, iterations: int = 200, depth: int = 4, learning_rate: float = 0.05, seed: int = 7):
+        self.params = dict(iterations=iterations, depth=depth, learning_rate=learning_rate, random_seed=seed)
+
+    def fit(self, df: pd.DataFrame, cores: list[dict], residual_log: np.ndarray,
+            weights: np.ndarray) -> "SpreadCorrector":
+        from catboost import CatBoostRegressor
+
+        self.model_ = CatBoostRegressor(
+            **self.params, loss_function="RMSE", cat_features=CATEGORICAL,
+            l2_leaf_reg=5.0, verbose=False, allow_writing_files=False,
+        )
+        self.model_.fit(_corrector_features(df, cores), residual_log, sample_weight=weights)
+        return self
+
+    def predict(self, df: pd.DataFrame, cores: list[dict]) -> np.ndarray:
+        return np.asarray(self.model_.predict(_corrector_features(df, cores)), dtype=float)
+
+    def shap_log(self, target: dict, core: dict) -> dict[str, float]:
+        return _shap(self.model_, _corrector_features(pd.DataFrame([target]), [core]))

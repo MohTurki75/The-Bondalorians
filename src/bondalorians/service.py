@@ -136,13 +136,17 @@ class Service:
     def backtest_summary(self) -> list[dict]:
         return self.estimator.backtest_summary()
 
+    def calibration_report(self) -> dict:
+        return self.estimator.calibration_report()
+
     # ------------------------------------------------------------ feedback
     def submit_feedback(self, run_id: str, kind: str, z_spread_bp: float,
                         reason: str = "", author: str = "") -> dict:
         """Enregistre un retour et l'intègre aussitôt comme observation pondérée.
 
-        Le réajustement est rapide (sans recalibrage) : les quantiles de
-        l'intervalle et le choix du champion restent ceux du dernier backtest.
+        Le réajustement est rapide : courbe des pairs, résidus et k sont
+        recalculés ; les modèles CatBoost, les paramètres de comparables et la
+        calibration restent ceux du dernier ajustement complet.
         """
         validate_feedback(kind, z_spread_bp)
         result = self.get_run(run_id)["payload"]["result"]
@@ -151,9 +155,7 @@ class Service:
             "reason": reason, "author": author, "bond": result["bond"],
             "estimate_bp": result["z_spread_bp"],
         }, prefix="fb")
-        calibration = self.estimator.calibration_
-        self.estimator.fit(self._current_universe(), calibrate=False)
-        self.estimator.calibration_ = calibration
+        self.estimator.refit(self._current_universe())
         return {
             "feedback_id": feedback_id,
             "weight": self.settings["feedback"]["weights"][kind],
