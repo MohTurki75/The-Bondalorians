@@ -5,6 +5,6 @@ __pycache__/
 .venv/
 catboost_info/
 # Données et journaux locaux : jamais dans le dépôt
-data/
-runs/
+/data/
+/runs/
 .env
