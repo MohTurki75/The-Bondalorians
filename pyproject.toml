@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bondalorians"
+version = "0.1.0"
+description = "Agent d'estimation du Z-Spread juste d'une obligation à partir d'un univers de comparables"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+ml = ["catboost>=1.2"]
+pg = ["psycopg[binary]>=3.1"]
+mcp = ["mcp>=1.2"]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
