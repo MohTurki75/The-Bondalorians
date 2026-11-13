@@ -1,0 +1,8 @@
+[server]
+# Port propre à cette application : 8501, le port par défaut de Streamlit, est
+# souvent pris par une autre application. scripts/start.sh utilise le même,
+# sauf si BONDALORIANS_PORT est défini dans .env.
+port = 8551
+
+[browser]
+gatherUsageStats = false

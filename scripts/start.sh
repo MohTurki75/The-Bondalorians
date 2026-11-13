@@ -5,12 +5,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
-PORT="${BONDALORIANS_PORT:-8501}"
+PORT="${BONDALORIANS_PORT:-8551}"
 mkdir -p runs
 
 if [ -f runs/ui.pid ] && kill -0 "$(cat runs/ui.pid)" 2>/dev/null; then
   echo "Déjà démarré (PID $(cat runs/ui.pid)) : http://localhost:$PORT"
   exit 0
+fi
+
+# Un autre programme (par exemple une autre application Streamlit) occupe-t-il le port ?
+if curl -s -o /dev/null "http://localhost:$PORT" 2>/dev/null; then
+  echo "Le port $PORT est déjà utilisé par un autre programme : ce n'est pas cette interface." >&2
+  echo "Choisissez un autre port dans .env (BONDALORIANS_PORT=8552), ou arrêtez l'autre programme." >&2
+  exit 1
 fi
 
 # Sans base ni fichier configuré, on travaille sur des données d'essai.
@@ -25,6 +32,7 @@ nohup python -m streamlit run app/main.py \
 echo $! > runs/ui.pid
 
 for _ in $(seq 1 30); do
+  if ! kill -0 "$(cat runs/ui.pid)" 2>/dev/null; then break; fi
   if curl -fs "http://localhost:$PORT/_stcore/health" >/dev/null 2>&1; then
     echo "Interface démarrée (PID $(cat runs/ui.pid)) : http://localhost:$PORT"
     echo "Premier affichage : jusqu'à une minute, le temps de préparer les modèles."
