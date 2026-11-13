@@ -6,7 +6,11 @@ celui-ci reformule ce texte et le JSON, il n'introduit aucun nombre.
 
 from __future__ import annotations
 
-MODEL_NAMES = {"A": "comparables ajustés par la courbe des pairs", "B": "CatBoost (challenger ML)"}
+MODEL_NAMES = {
+    "A": "comparables ajustés par la courbe des pairs",
+    "B": "CatBoost indépendant",
+    "C": "comparables corrigés par CatBoost",
+}
 
 STANDING_CAVEATS = [
     "L'estimation repose uniquement sur les données de la base : liquidité réelle, "
@@ -27,7 +31,11 @@ def build_narrative(result: dict) -> str:
             f"Intervalle à {100 * result['interval_level']:.0f} % : {low:.0f} à {high:.0f} pb."
         )
     conf = result["confidence"]
-    lines.append(f"Confiance : {conf['score']:.0f}/100 (note {conf['grade']}).")
+    if conf["score"] is not None:
+        lines.append(
+            f"Confiance : {conf['score']:.0f}/100 (note {conf['grade']}) ; "
+            f"erreur typique attendue : {conf['typical_error_bp']:.0f} pb."
+        )
     lines.append(f"Palier : {result['tier']}. {result['tier_reason']}")
     lines.append(f"Modèle retenu : {MODEL_NAMES[result['champion']]}.")
 

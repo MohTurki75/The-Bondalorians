@@ -9,10 +9,18 @@ tiers:
   complex_seniorities: [TIER2, AT1, SUBORDINATED, HYBRID]
 
 comparables:
-  top_k: 15
   min_candidates: 5          # en dessous, on relâche un filtre dur
+  # lambda = n / (n + k). "auto" : k estimé par analyse de variance des résidus
+  # (variance du bruit / variance entre émetteurs). Un nombre force la valeur.
+  issuer_shrinkage_k: auto
+  # Réglage automatique des trois paramètres ci-dessous sur le backtest.
+  # Les valeurs écrites ici servent de point de départ et de repli.
+  tune: true
+  tune_trials: 200
+  tune_share: 0.10           # part des obligations servant au réglage (autant pour valider)
+  tune_min_weight: 0.05      # poids minimal de chaque critère (garde-fou métier)
+  top_k: 15
   bandwidth: 0.25            # largeur du noyau sur la distance
-  issuer_shrinkage_k: 2.0    # lambda = n / (n + k)
   weights:                   # distance de Gower pondérée (somme = 1)
     notch: 0.35
     maturity: 0.25
@@ -24,25 +32,24 @@ peer_curve:
   ridge: 0.01
 
 ml:
-  iterations: 300
+  iterations: 300            # modèle B : CatBoost indépendant
   depth: 5
   learning_rate: 0.08
+  corrector: true            # modèle C : CatBoost qui corrige le modèle A
+  corrector_iterations: 200
+  corrector_depth: 4
 
 calibration:
   alpha: 0.10                # intervalle à 90 %
   n_folds: 5
   min_per_key: 50            # effectif minimal pour un quantile par palier
   seed: 7
+  adaptive: true             # intervalle élargi ou resserré selon la difficulté prédite
+  champion_margin: 0.05      # gain relatif exigé pour qu'un modèle ML détrône le modèle A
 
 confidence:
-  weights:
-    interval: 0.40
-    comparables: 0.30
-    agreement: 0.20
-    domain: 0.10
-  interval_ref: 0.60         # demi-largeur en log donnant un score nul
-  agreement_ref: 0.30        # écart champion-challenger en log donnant zéro
-  domain_ref: 30             # effectif de segment donnant un score plein
+  # Le score est appris (part des cas du backtest jugés plus difficiles).
+  # Seuls les seuils des notes restent fixés.
   grades: {A: 75, B: 50}
 
 controls:

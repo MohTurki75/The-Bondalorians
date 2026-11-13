@@ -110,5 +110,12 @@ def backtest_summary() -> list[dict]:
     return service().backtest_summary()
 
 
+@mcp.tool()
+def calibration_report() -> dict:
+    """Paramètres appris sur les données : rétrécissement émetteur, poids des
+    comparables (avec le gain mesuré), champion par palier."""
+    return service().calibration_report()
+
+
 if __name__ == "__main__":
     mcp.run()

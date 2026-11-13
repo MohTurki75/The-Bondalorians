@@ -26,19 +26,27 @@ viennent d'outils déterministes, journalisés et rejouables.
 2. **Modèle A (transparent)** : courbe des pairs, plus l'écart propre à
    l'émetteur (rétréci s'il a peu d'obligations), plus l'écart des comparables
    les plus proches.
-3. **Modèle B (challenger)** : CatBoost avec contraintes de monotonie.
+3. **Modèles CatBoost** : B, indépendant, sert de contrôle ; C corrige
+   l'erreur du modèle A.
 4. **Backtest** : il désigne le champion par palier et calibre l'intervalle,
    en séparant émetteur connu et émetteur jamais vu.
-5. **Retours utilisateurs** : un spread traité ou un avis devient une
+5. **Confiance apprise** : un modèle prédit la difficulté de chaque cas ; il
+   fixe le score et la largeur de l'intervalle.
+6. **Retours utilisateurs** : un spread traité ou un avis devient une
    observation pondérée, prise en compte immédiatement.
 
-Détails et limites : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Les coefficients sont appris sur les données quand c'est possible : poids de
+la courbe émetteur, poids de distance des comparables, champion, confiance.
+
+- Déroulé pas à pas : [docs/FONCTIONNEMENT.md](docs/FONCTIONNEMENT.md)
+- Décisions et limites : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Démarrage
 
     pip install -e ".[ml,pg,mcp,dev]"
     python scripts/make_synthetic.py        # univers synthétique dans data/
     python scripts/backtest.py --ml         # erreur et couverture hors échantillon
+    python scripts/ablation.py --ml         # effet de chaque amélioration
     pytest
 
 Serveur MCP sur données synthétiques :
@@ -62,19 +70,20 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
     src/bondalorians/
       data/                 schéma canonique, accès CSV et PostgreSQL, journaux
       domain/               paliers et contrôles
-      quant/                courbe des pairs, estimateur, CatBoost, conformal, backtest
+      quant/                courbe des pairs, estimateur, réglage, CatBoost, confiance, backtest
       explain/              cascade en points de base, récit
       learning/             retours utilisateurs
       mcp_server/           outils MCP
       service.py            façade unique (utilisable sans MCP ni LLM)
-    scripts/                données synthétiques, backtest
+    scripts/                données synthétiques, backtest, mesure des améliorations
     tests/
 
 ## Outils MCP
 
 `describe_universe`, `get_bond`, `search_bonds`, `classify_complexity`,
 `find_comparables`, `estimate_zspread`, `validate_estimate`,
-`explain_estimate`, `submit_feedback`, `get_run`, `backtest_summary`.
+`explain_estimate`, `submit_feedback`, `get_run`, `backtest_summary`,
+`calibration_report`.
 
 ## État
 

@@ -51,6 +51,8 @@ def holdout_evaluation(
     out = pd.DataFrame(rows)
     out["abs_error_bp"] = (out["estimate_bp"] - out["truth_bp"]).abs()
     out["covered"] = (out["truth_bp"] >= out["low_bp"]) & (out["truth_bp"] <= out["high_bp"])
+    out["relative_width"] = (out["high_bp"] - out["low_bp"]) / out["estimate_bp"]
+    out.attrs["calibration_report"] = estimator.calibration_report()
     return out
 
 
@@ -62,4 +64,5 @@ def summarize(evaluation: pd.DataFrame) -> pd.DataFrame:
         mediane_abs_bp=("abs_error_bp", "median"),
     )
     table["couverture"] = with_interval.groupby("tier")["covered"].mean()
+    table["largeur_relative"] = with_interval.groupby("tier")["relative_width"].mean()
     return table.round(3).reset_index()
