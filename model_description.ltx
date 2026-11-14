@@ -1,0 +1,685 @@
+Voici une version complète, corrigée pour le périmètre : **estimer le Z-Spread d’une nouvelle obligation à partir des Z-Spreads déjà fournis dans PostgreSQL**. Elle est prête à copier dans le `README.md` du dépôt.
+
+```markdown
+# Bond Z-Spread Estimation Agent
+
+Agent IA explicable qui estime le Z-Spread d’une nouvelle obligation à partir d’un univers d’environ 4 000 obligations stockées dans PostgreSQL.
+
+Le système combine une recherche de comparables, une baseline statistique et, si les données le permettent, un modèle de machine learning. Chaque estimation est accompagnée de sa méthodologie, d’un score de confiance, de contrôles et d’une trace d’audit.
+
+## 1. Objectif et périmètre
+
+### Objectif
+
+À partir des caractéristiques d’une obligation cible, estimer son Z-Spread en exploitant les obligations historiques fournies dans PostgreSQL.
+
+Les Z-Spreads historiques sont fournis dans la base. Le système utilise ces valeurs comme cible d’apprentissage et comme base de comparaison.
+
+### Inclus dans le périmètre
+
+- Validation des caractéristiques de l’obligation cible.
+- Recherche et classement d’obligations comparables.
+- Estimation du Z-Spread par méthode comparable.
+- Estimation par modèle ML si la qualité des données le permet.
+- Comparaison avec une méthode challenger indépendante.
+- Calcul d’un score de confiance et d’une fourchette d’estimation.
+- Explication des facteurs ayant contribué au résultat.
+- Enregistrement des estimations et retours utilisateurs à des fins d’audit et d’amélioration.
+
+### Hors périmètre
+
+Le système ne calcule pas :
+
+- le fair value ;
+- le prix de l’obligation ;
+- le yield ;
+- le Z-Spread à partir de prix et de courbes.
+
+Il estime le Z-Spread directement à partir des Z-Spreads fournis dans PostgreSQL.
+
+---
+
+## 2. Principes de conception
+
+1. **Le calcul du spread est explicable** : les comparables, les poids, les données et la méthode sont visibles.
+2. **Le modèle ML n’est pas l’unique méthode** : une baseline comparable reste disponible et sert de challenger.
+3. **Le LLM orchestre et explique** : il ne doit ni inventer ni modifier les valeurs numériques retournées par les services métier.
+4. **Le système sait signaler un manque de données** : une estimation peu étayée entraîne une confiance faible ou une demande de revue.
+5. **Chaque résultat est reproductible** : les entrées, comparables, paramètres et versions de modèle sont journalisés.
+6. **Le feedback n’entraîne pas automatiquement le modèle** : il est collecté, contrôlé puis intégré dans une prochaine version validée.
+
+---
+
+## 3. Architecture globale
+
+```text
+Utilisateur
+    │
+    ▼
+Interface de démonstration / API
+    │
+    ▼
+Agent IA / orchestrateur
+    ├── valide les champs reçus
+    ├── choisit les outils métier à appeler
+    └── rédige une explication à partir des résultats structurés
+    │
+    ▼
+Services métier
+    ├── validation et classification de complexité
+    ├── profilage et normalisation des données
+    ├── recherche et classement des comparables
+    ├── estimation comparable du Z-Spread
+    ├── prédiction ML du Z-Spread
+    ├── score de confiance et challenger
+    └── explicabilité et audit
+    │
+    ▼
+MCP Server
+    ├── outils métier contrôlés
+    └── ressources de méthodologie et de référence
+    │
+    ▼
+PostgreSQL
+    ├── obligations et caractéristiques
+    ├── Z-Spreads fournis
+    ├── référentiels préchargés
+    ├── historique des estimations
+    └── feedbacks utilisateurs
+```
+
+Pour le hackathon, cette architecture peut être réalisée comme une application modulaire unique. Il n’est pas nécessaire de déployer chaque composant comme un microservice.
+
+---
+
+## 4. Composants de l’application
+
+### 4.1 Interface utilisateur
+
+Une interface légère permet de :
+
+- saisir les caractéristiques d’une nouvelle obligation ;
+- lancer une estimation ;
+- consulter le Z-Spread estimé et sa fourchette ;
+- visualiser les comparables retenus ;
+- consulter la confiance, les alertes et les explications ;
+- accepter, rejeter ou corriger le résultat.
+
+Une interface Streamlit ou une API avec une page de démonstration suffit pour le hackathon.
+
+### 4.2 Agent IA / orchestrateur
+
+L’agent coordonne les étapes de la demande et appelle les outils MCP nécessaires.
+
+Il peut :
+
+- demander les informations manquantes ;
+- distinguer un cas simple d’un cas complexe ;
+- sélectionner le workflow d’estimation adapté ;
+- présenter les résultats et les limites dans un langage compréhensible.
+
+Il ne doit pas :
+
+- interroger PostgreSQL avec du SQL libre ;
+- calculer seul la valeur numérique du spread ;
+- modifier les résultats retournés par les services métier ;
+- présenter une estimation incertaine comme une valeur certaine.
+
+### 4.3 Services métier
+
+Les services métier contiennent la logique déterministe de l’application. Ils peuvent être appelés directement par l’API et exposés via le serveur MCP.
+
+### 4.4 MCP Server
+
+Le serveur MCP fournit une interface standard entre l’agent et les opérations métier. Les outils MCP appellent des fonctions contrôlées ; ces fonctions utilisent le repository PostgreSQL et les services métier.
+
+### 4.5 PostgreSQL
+
+PostgreSQL contient les données source, les référentiels nécessaires et les résultats d’audit. L’application ne doit pas transférer tout l’univers obligataire dans le contexte de l’agent : les filtres, distances et classements sont exécutés côté serveur.
+
+---
+
+## 5. Architecture MCP Server et accès PostgreSQL
+
+### Principes d’accès
+
+- Utiliser un rôle PostgreSQL applicatif dédié.
+- Donner un accès en lecture seule aux tables de marché.
+- Limiter les écritures aux tables d’audit et de feedback.
+- Utiliser des requêtes paramétrées.
+- Limiter le nombre de lignes retournées.
+- Interdire les requêtes SQL arbitraires générées par le LLM.
+- Exposer des vues normalisées plutôt que les tables brutes lorsque c’est possible.
+- Journaliser les outils appelés et les paramètres métier pertinents.
+
+### Données pouvant être présentes dans PostgreSQL
+
+Le schéma réel sera découvert le premier jour du hackathon. Les champs à rechercher comprennent notamment :
+
+- identifiant de l’obligation, ISIN ou identifiant interne ;
+- émetteur ;
+- secteur ;
+- pays ou région ;
+- devise ;
+- rating et fournisseur de rating, si présents ;
+- seniorité ;
+- type de coupon ;
+- coupon ;
+- maturité et maturité résiduelle ;
+- date d’observation ;
+- Z-Spread fourni ;
+- indicateur de prix ou de spread stale, si disponible ;
+- caractéristiques de liquidité, si disponibles ;
+- caractéristiques d’optionnalité, si disponibles.
+
+Les champs absents ne doivent pas être reconstruits ou complétés à partir du web pendant l’exécution. Ils doivent être traités comme manquants, ou provenir d’un référentiel préchargé autorisé.
+
+---
+
+## 6. Outils MCP à exposer
+
+| Outil MCP | Description |
+|---|---|
+| `validate_bond` | Vérifie les champs obligatoires, les formats, les valeurs incohérentes et les données manquantes. |
+| `classify_bond_complexity` | Classe le cas comme simple, intermédiaire ou complexe selon les caractéristiques disponibles et les limites du système. |
+| `get_data_profile` | Retourne le profil de la base : couverture, champs manquants, distributions et fraîcheur des données. |
+| `search_comparables` | Recherche et classe les obligations les plus comparables à la cible. |
+| `estimate_spread_comparable` | Estime le Z-Spread à partir des Z-Spreads des comparables. |
+| `estimate_spread_ml` | Estime le Z-Spread avec le modèle ML actif. |
+| `run_challenger` | Compare les méthodes indépendantes et applique les contrôles de cohérence. |
+| `calculate_confidence` | Calcule le score de qualité de l’estimation et la fourchette associée. |
+| `explain_spread_estimate` | Produit les facteurs explicatifs, les comparables déterminants et les limites du résultat. |
+| `record_feedback` | Enregistre un feedback ou une correction liée à une estimation. |
+| `get_estimation_audit` | Récupère les entrées, résultats, données, comparables et versions associés à un `run_id`. |
+
+### Resources MCP utiles
+
+- `bond-data-dictionary` : dictionnaire des données normalisées.
+- `supported-instruments` : instruments et structures pris en charge.
+- `supported-fields` : variables utilisées ou disponibles.
+- `rating-mapping` : correspondance de ratings chargée avant le hackathon.
+- `sector-taxonomy` : taxonomie sectorielle chargée avant le hackathon.
+- `methodology` : description des méthodes d’estimation.
+- `model-card` : version, variables, métriques et limites du modèle actif.
+
+---
+
+## 7. Modèle canonique de l’obligation
+
+Avant le hackathon, définir un schéma interne indépendant de la structure réelle de PostgreSQL.
+
+Exemple de champs :
+
+```text
+Bond
+├── bond_id
+├── issuer_id
+├── issuer_name
+├── isin
+├── currency
+├── country
+├── sector
+├── rating
+├── seniority
+├── coupon_type
+├── coupon_rate
+├── maturity_date
+├── remaining_maturity
+├── issue_date
+├── observation_date
+├── z_spread
+├── liquidity_fields
+├── optionality_fields
+└── data_quality_flags
+```
+
+Le modèle canonique est mappé au schéma réel lors du profilage des données le premier jour.
+
+Les caractéristiques absentes doivent rester explicitement manquantes. L’application doit garder un indicateur de champ manquant afin que cette absence puisse réduire le score de confiance.
+
+---
+
+## 8. Recherche et sélection des comparables
+
+La sélection de comparables doit combiner des filtres métier et un classement quantitatif traçable.
+
+### 8.1 Filtres initiaux
+
+Exclure ou séparer les obligations qui diffèrent fortement sur des dimensions critiques, selon les champs disponibles :
+
+- devise ;
+- type de coupon ;
+- type d’instrument ;
+- séniorité ;
+- présence d’optionnalité ;
+- qualité ou fraîcheur du Z-Spread ;
+- disponibilité des caractéristiques requises.
+
+Les filtres doivent être configurables et enregistrés dans les détails de l’estimation.
+
+### 8.2 Distance de similarité
+
+Pour les candidats restants, calculer une distance pondérée :
+
+\[
+D_i =
+w_T d_T +
+w_R d_R +
+w_S d_S +
+w_C d_C +
+w_V d_V +
+w_Q d_Q
+\]
+
+où, selon les données disponibles :
+
+- \(d_T\) : écart de maturité résiduelle ;
+- \(d_R\) : écart de rating en nombre de crans ;
+- \(d_S\) : différence de secteur ;
+- \(d_C\) : différence de pays ou de région ;
+- \(d_V\) : différence de séniorité ;
+- \(d_Q\) : pénalité de qualité ou de fraîcheur des données.
+
+Les distances numériques doivent être normalisées. Les catégories doivent suivre des mappings préparés avant le hackathon lorsqu’ils sont nécessaires et autorisés.
+
+### 8.3 Pondération et estimation
+
+Transformer les distances en poids décroissants, par exemple :
+
+\[
+w_i = \frac{\exp(-D_i / h)}
+{\sum_j \exp(-D_j / h)}
+\]
+
+La baseline comparable peut être une **médiane pondérée** des Z-Spreads. Cette méthode résiste mieux aux valeurs extrêmes qu’une simple moyenne.
+
+Le résultat doit conserver et présenter :
+
+- les obligations retenues ;
+- leurs Z-Spreads ;
+- leur distance à la cible ;
+- leur poids ;
+- leur date d’observation ;
+- les exclusions importantes ;
+- la dispersion des spreads comparables.
+
+### 8.4 Gestion d’un univers trop petit
+
+Si le nombre de comparables est insuffisant :
+
+1. élargir progressivement les tolérances, par exemple sur le tenor puis le secteur ;
+2. documenter les filtres relâchés ;
+3. élargir la fourchette ;
+4. diminuer le score de confiance ;
+5. signaler une revue humaine si le support reste insuffisant.
+
+L’élargissement ne doit pas être silencieux.
+
+---
+
+## 9. Stratégie d’estimation du Z-Spread
+
+Le système présente au moins deux estimations indépendantes lorsque les données le permettent.
+
+### Méthode A — baseline comparable
+
+- Recherche des obligations proches.
+- Calcul d’une médiane pondérée de leurs Z-Spreads.
+- Fourchette estimée à partir de la dispersion des comparables.
+- Explication directement liée aux obligations retenues.
+
+Cette méthode doit fonctionner même sans modèle ML.
+
+### Méthode B — modèle ML
+
+- Entraîner un modèle de régression sur les Z-Spreads fournis.
+- Utiliser les caractéristiques de l’obligation disponibles dans PostgreSQL.
+- Retourner le spread estimé et les contributions des variables.
+- Refuser ou signaler les prédictions hors du domaine couvert par le jeu d’entraînement.
+
+### Combinaison éventuelle
+
+Une estimation finale combinée peut être envisagée si la validation justifie la combinaison. Les poids ne doivent pas être choisis uniquement pour produire le meilleur résultat sur une seule démonstration.
+
+En cas de désaccord important, ne pas masquer l’écart : retourner le statut `REVIEW` ou `LOW_CONFIDENCE` avec les résultats des deux méthodes.
+
+---
+
+## 10. Préparation du Machine Learning
+
+### 10.1 Modèle principal
+
+**CatBoostRegressor** est un bon candidat pour un petit jeu de données tabulaire contenant des variables catégorielles comme le secteur, le pays, la devise, le rating et la séniorité.
+
+### 10.2 Baseline et candidats
+
+- Baseline : médiane pondérée des comparables.
+- Modèle principal : CatBoostRegressor.
+- Modèle alternatif éventuel : LightGBM ou XGBoost, seulement si l’environnement est préparé à l’avance et si la comparaison est utile.
+- Éviter un modèle complexe ou profond qui serait difficile à valider dans le temps disponible.
+
+### 10.3 Variables candidates
+
+Selon la disponibilité réelle :
+
+- devise ;
+- pays ou région ;
+- secteur ;
+- rating ;
+- séniorité ;
+- maturité résiduelle ;
+- coupon ;
+- type de coupon ;
+- date d’observation ;
+- variables de liquidité ;
+- caractéristiques d’optionnalité ;
+- agrégats de marché calculés sans utiliser la cible du bond à prédire.
+
+### 10.4 Prévention des fuites de données
+
+- Ne jamais inclure le Z-Spread cible comme feature.
+- Calculer les agrégats en respectant la séparation entraînement/validation.
+- Si plusieurs bonds viennent du même émetteur, éviter de disperser des observations très proches dans des partitions d’entraînement et de validation.
+- Si des dates sont disponibles, préférer une validation temporelle.
+- En l’absence d’historique temporel, faire une validation groupée par émetteur.
+
+### 10.5 Métriques
+
+Rapporter au minimum :
+
+- MAE en points de base ;
+- biais moyen en points de base ;
+- erreur par rating ;
+- erreur par devise ;
+- erreur par secteur ;
+- erreur par tranche de maturité ;
+- écart entre modèle ML et baseline comparable.
+
+Les résultats globaux ne doivent pas masquer un mauvais comportement sur un segment particulier.
+
+### 10.6 Préparation avant le hackathon
+
+Avant d’accéder à la base réelle, préparer :
+
+- le pipeline de nettoyage ;
+- le pipeline de features ;
+- le code d’entraînement et de prédiction ;
+- la validation temporelle ou groupée ;
+- le calcul des métriques ;
+- l’intégration CatBoost et SHAP ;
+- les fichiers de configuration ;
+- un jeu synthétique pour vérifier le fonctionnement du pipeline.
+
+Le modèle définitif ne sera entraîné qu’après le profilage des données autorisées.
+
+---
+
+## 11. Score de confiance
+
+Le score doit être présenté comme un **score de qualité de l’estimation**, et non comme une probabilité calibrée, sauf si une calibration a été réalisée et validée.
+
+Un score de 0 à 100 peut combiner :
+
+- nombre de comparables disponibles ;
+- proximité des comparables ;
+- fraîcheur des observations ;
+- dispersion des Z-Spreads comparables ;
+- qualité et complétude des champs ;
+- accord entre la baseline comparable et le modèle ML ;
+- stabilité de l’estimation lorsqu’on retire un comparable dominant ;
+- proximité de la cible avec le domaine du jeu d’entraînement.
+
+Exemples de pénalités :
+
+- très peu de comparables ;
+- spreads comparables très dispersés ;
+- données anciennes ;
+- champs clés absents ;
+- désaccord important entre baseline et ML ;
+- instrument hors domaine ;
+- estimation très sensible à un seul bond.
+
+Afficher le score avec ses composants, ses raisons de baisse et une fourchette de Z-Spread. Ne pas afficher uniquement un nombre sans explication.
+
+---
+
+## 12. Challenger model et contrôles
+
+Le challenger doit être différent du modèle principal.
+
+Configuration recommandée :
+
+- modèle principal : CatBoost ;
+- challenger : médiane pondérée des comparables ;
+- contrôle de stabilité : recalcul après retrait successif des comparables les plus influents ;
+- contrôle de domaine : comparer la cible aux plages couvertes par les données d’entraînement ;
+- contrôle de données : identifier les valeurs manquantes, incohérentes ou anciennes.
+
+Exemples de statuts :
+
+- `PASS` : méthodes cohérentes et données suffisantes ;
+- `REVIEW` : écart notable ou données à contrôler ;
+- `LOW_CONFIDENCE` : comparables trop faibles ou cible hors domaine.
+
+Les seuils doivent être configurables et justifiés par la validation disponible.
+
+---
+
+## 13. Explicabilité et auditabilité
+
+### 13.1 Explication financière et métier
+
+Pour chaque résultat, expliquer :
+
+- pourquoi les comparables ont été sélectionnés ;
+- les différences de rating, secteur, maturité, devise ou séniorité ;
+- le poids donné aux principaux comparables ;
+- l’influence de la dispersion des spreads ;
+- les champs manquants ou les données anciennes ;
+- la méthode ayant déterminé le résultat final ;
+- les limites connues de l’estimation.
+
+### 13.2 Explication du modèle
+
+Utiliser SHAP pour expliquer la prédiction CatBoost en contributions au Z-Spread, exprimées en points de base lorsque cela est approprié.
+
+L’explication SHAP décrit la contribution des variables à la prédiction du modèle. Elle ne doit pas être présentée comme une preuve de causalité.
+
+### 13.3 Trace d’audit
+
+Pour chaque estimation, enregistrer :
+
+- un identifiant `run_id` ;
+- les caractéristiques de la cible ;
+- les données source et leurs dates ;
+- les IDs des comparables ;
+- leurs distances et leurs poids ;
+- la prédiction comparable ;
+- la prédiction ML ;
+- le résultat du challenger ;
+- le score de confiance ;
+- la version des modèles et des configurations ;
+- les contrôles et avertissements ;
+- le feedback utilisateur éventuel.
+
+---
+
+## 14. Continuous learning et feedbacks
+
+Le feedback utilisateur doit être capturé et lié à une estimation précise.
+
+### Feedbacks à prendre en charge
+
+- estimation acceptée ;
+- estimation rejetée ;
+- Z-Spread corrigé ;
+- comparable jugé pertinent ou non pertinent ;
+- motif de correction ;
+- commentaire facultatif.
+
+### Cycle d’amélioration
+
+1. Enregistrer le feedback dans PostgreSQL avec le `run_id`.
+2. Distinguer les erreurs de données des erreurs de modèle ou de méthodologie.
+3. Faire revoir les feedbacks par une personne responsable.
+4. Construire un dataset de réentraînement versionné.
+5. Réentraîner hors ligne.
+6. Comparer le modèle candidat au modèle actif.
+7. Promouvoir une nouvelle version seulement après validation.
+
+Les feedbacks ne doivent pas être injectés automatiquement dans le modèle actif pendant la démonstration.
+
+---
+
+## 15. Sécurité et gestion des données
+
+- Aucun accès web n’est requis pendant l’exécution.
+- Les données de marché proviennent exclusivement de PostgreSQL.
+- Les référentiels externes nécessaires doivent être préparés et chargés avant le hackathon.
+- Les secrets sont conservés dans des variables d’environnement et exclus de Git.
+- Les jeux de données de marché ne sont pas committés dans le dépôt.
+- Le serveur MCP expose des outils métier restreints et n’accepte pas de SQL arbitraire.
+- Les exports et artefacts doivent respecter les règles du fournisseur de données.
+
+---
+
+## 16. Structure du dépôt
+
+```text
+bond-zspread-agent/
+├── README.md
+├── pyproject.toml
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── src/
+│   ├── api/
+│   │   └── app.py
+│   ├── agent/
+│   │   ├── orchestrator.py
+│   │   └── response_builder.py
+│   ├── mcp_server/
+│   │   ├── server.py
+│   │   ├── tools.py
+│   │   └── resources.py
+│   ├── data/
+│   │   ├── repository.py
+│   │   ├── schemas.py
+│   │   └── mapping.py
+│   ├── domain/
+│   │   ├── validation.py
+│   │   ├── complexity.py
+│   │   ├── comparables.py
+│   │   ├── spread_estimation.py
+│   │   └── confidence.py
+│   ├── models/
+│   │   ├── features.py
+│   │   ├── train.py
+│   │   ├── predict.py
+│   │   ├── challenger.py
+│   │   └── explain.py
+│   └── audit/
+│       ├── runs.py
+│       └── feedback.py
+├── sql/
+│   ├── 001_create_audit_tables.sql
+│   └── 002_create_feedback_tables.sql
+├── configs/
+│   ├── comparable_weights.yaml
+│   ├── confidence_thresholds.yaml
+│   └── model.yaml
+├── notebooks/
+│   └── day1_data_profile.ipynb
+├── docs/
+│   ├── methodology.md
+│   ├── data_dictionary.md
+│   └── demo_scenarios.md
+└── artifacts/
+    └── .gitkeep
+```
+
+---
+
+## 17. Répartition de l’équipe
+
+| Rôle | Avant le hackathon | Jour 1 | Jour 2 |
+|---|---|---|---|
+| Développeur 1 — Quant et métier | Définir le schéma canonique, la distance de comparabilité, la baseline et les contrôles | Analyser la qualité des Z-Spreads et ajuster les critères | Stabiliser l’estimation, le challenger et les règles de confiance |
+| Développeur 2 — Données et MCP | Préparer le repository PostgreSQL, les outils MCP et les tables d’audit | Cartographier le schéma réel et brancher les requêtes | Finaliser l’intégration MCP et l’audit |
+| Développeur 3 — ML et interface | Préparer features, entraînement, validation, CatBoost, SHAP et interface | Profiler les données et entraîner les modèles candidats | Intégrer les explications, la confiance et la démo |
+| Business Analyst | Préparer glossaire, cas d’usage, critères d’acceptation et scénarios de démonstration | Vérifier les champs, les comparables et les résultats avec le regard crédit | Tester les scénarios, valider les explications et préparer le pitch |
+
+Les trois développeurs doivent se mettre d’accord avant le hackathon sur les contrats d’entrée/sortie et le modèle canonique afin de limiter les conflits d’intégration.
+
+---
+
+## 18. Plan de réalisation en 48 heures
+
+### Avant le hackathon
+
+- Créer le dépôt et la structure de code.
+- Définir le modèle canonique et les contrats des outils MCP.
+- Implémenter l’accès PostgreSQL avec des données synthétiques.
+- Préparer le moteur de comparables.
+- Préparer la baseline de médiane pondérée.
+- Préparer le pipeline CatBoost, validation et métriques.
+- Préparer SHAP, score de confiance, audit et feedback.
+- Préparer les cas de démonstration avec des données synthétiques identifiées comme telles.
+
+### Jour 1
+
+- Cartographier le schéma réel de PostgreSQL.
+- Mesurer la couverture des champs.
+- Vérifier la qualité, la distribution et la fraîcheur des Z-Spreads.
+- Identifier les types d’obligations réellement présents.
+- Définir les features utilisables.
+- Construire une première baseline.
+- Décider si un modèle ML est justifié par la taille et la qualité des observations.
+
+### Jour 2
+
+- Entraîner et comparer le ou les modèles.
+- Fixer les seuils de revue et de confiance.
+- Vérifier les explications et les contrôles.
+- Tester des cas simples, intermédiaires et hors domaine.
+- Finaliser l’interface et la démonstration.
+- Préparer un pitch autour de la méthode, de l’auditabilité et des limites.
+
+---
+
+## 19. Éléments différenciants pour le jury
+
+- La cible est utilisée telle qu’elle est fournie : le Z-Spread historique n’est pas reconstruit depuis des prix.
+- Les comparables sont présentés avec leurs distances, leurs poids et leurs exclusions.
+- Le système peut préférer une baseline robuste à un modèle ML insuffisamment validé.
+- Le modèle ML est comparé à un challenger indépendant.
+- La confiance reflète la qualité réelle du voisinage et l’incertitude du modèle.
+- Les résultats sont expliqués à la fois dans le langage du crédit et par les contributions des variables.
+- Les prédictions hors domaine sont signalées.
+- Les feedbacks sont conservés et gouvernés avant tout réentraînement.
+- Le système conserve une trace complète permettant de reproduire chaque estimation.
+
+## 20. Critères de réussite de la démo
+
+La démonstration doit montrer :
+
+1. une obligation cible avec des champs connus ;
+2. la validation de ses données ;
+3. les comparables trouvés et leurs poids ;
+4. l’estimation baseline ;
+5. la prédiction ML, si elle est exploitable ;
+6. le résultat du challenger et les éventuels écarts ;
+7. le Z-Spread estimé, sa fourchette et le score de confiance ;
+8. l’explication et les facteurs de baisse de confiance ;
+9. l’enregistrement d’un feedback lié au `run_id`.
+
+## 21. Limites connues
+
+La performance dépend de la qualité, de la couverture et de la cohérence des données fournies. Les ratings, taxonomies, dates d’observation et autres référentiels ne sont utilisables que s’ils sont présents dans la base ou préparés et chargés avant le hackathon. Les instruments atypiques ou insuffisamment représentés peuvent nécessiter une revue humaine.
+```
+
+### Sources techniques
+
+- [Spécification MCP — tools](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx)
+- [CatBoost — variables catégorielles](https://catboost.ai/docs/en/features/categorical-features.html)
+- [CatBoost — contributions SHAP](https://catboost.ai/docs/en/concepts/python-reference_catboostregressor_get_feature_importance.html)
