@@ -14,6 +14,7 @@ from bondalorians.analysis.clustering import METHODS as CLUSTER_METHODS
 from bondalorians.analysis.clustering import cluster_universe
 from bondalorians.analysis.common import for_agent
 from bondalorians.analysis.models import all_model_views, comparables_view
+from bondalorians.analysis.report import build_report
 from bondalorians.analysis.sample import describe_sample
 from bondalorians.config import load_settings
 from bondalorians.data import repository
@@ -155,6 +156,12 @@ class Service:
 
     def analyze_comparables(self, run_id: str) -> dict:
         return for_agent(comparables_view(self.estimator, self.get_run(run_id)["payload"]["result"]))
+
+    def analysis_report(self, run_id: str | None = None, include_forest: bool = True,
+                        source: str = "") -> str:
+        """Rapport Markdown complet, à donner à un LLM pour interprétation."""
+        target = self.get_run(run_id)["payload"]["result"] if run_id else None
+        return build_report(self.estimator, target, source, include_forest=include_forest)
 
     def analyze_clusters(self, method: str = "kmeans", run_id: str | None = None,
                          n_clusters: int | None = None, include_spread: bool = False) -> dict:

@@ -75,7 +75,11 @@ class ClusterEncoder:
         return np.hstack(blocks).astype(float)
 
 
-def choose_k(x: np.ndarray, k_values=range(3, 9), seed: int = 7) -> pd.DataFrame:
+K_RANGE = range(2, 11)
+READING_K = 4
+
+
+def choose_k(x: np.ndarray, k_values=K_RANGE, seed: int = 7) -> pd.DataFrame:
     """Silhouette du k-means pour chaque k : plus elle est haute, mieux les familles sont séparées."""
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
@@ -86,6 +90,38 @@ def choose_k(x: np.ndarray, k_values=range(3, 9), seed: int = 7) -> pd.DataFrame
         score = silhouette_score(x, labels, sample_size=min(2000, len(x)), random_state=seed)
         rows.append({"k": k, "silhouette": round(float(score), 3)})
     return pd.DataFrame(rows)
+
+
+def structure_verdict(silhouettes: pd.DataFrame, reading_k: int = READING_K) -> dict:
+    """Le nombre de familles vient-il des données, ou est-ce un choix de lecture ?
+
+    Structure nette si la meilleure silhouette dépasse 0,5, ou si elle dépasse 0,25
+    et forme un vrai sommet (ni au bord de la plage testée, ni sur une courbe qui
+    baisse sans cesse). Sinon, le nombre de familles est un choix de lecture.
+    """
+    scores = silhouettes.set_index("k")["silhouette"]
+    best_k, best = int(scores.idxmax()), float(scores.max())
+    edge = best_k in (scores.index.min(), scores.index.max())
+    decreasing = bool((scores.diff().dropna() <= 0.005).all())
+    clear = best >= 0.5 or (best >= 0.25 and not edge and not decreasing)
+    if clear:
+        reason = f"Structure en groupes : la séparation est la plus nette avec {best_k} familles (silhouette {fmt(best, 2)})."
+    else:
+        why = []
+        if best < 0.25:
+            why.append(f"la meilleure silhouette ({fmt(best, 2)}) est sous 0,25")
+        if decreasing:
+            why.append("la silhouette baisse à chaque famille ajoutée")
+        elif edge:
+            why.append(f"le meilleur score est au bord de la plage testée ({best_k} familles)")
+        reason = (
+            "Pas de structure en groupes nette : " + " et ".join(why) + ". Les obligations forment plutôt un "
+            f"continuum ; le nombre de familles est donc un choix de lecture ({reading_k} par défaut), pas une "
+            "découverte. La séparation la plus nette est en "
+            f"{best_k} familles (silhouette {fmt(best, 2)})."
+        )
+    return {"clear": clear, "best_k": best_k, "best_silhouette": round(best, 3),
+            "chosen_k": best_k if clear else reading_k, "reason": reason}
 
 
 def _fit(method: str, x: np.ndarray, k: int, seed: int):
@@ -153,7 +189,8 @@ def _projection(x: np.ndarray, groups: list[str]) -> tuple[np.ndarray, list[floa
 
 
 def cluster_universe(estimator, method: str = "kmeans", k: int | None = None,
-                     include_spread: bool = False, target: dict | None = None, seed: int = 7) -> dict:
+                     include_spread: bool = False, target: dict | None = None, seed: int = 7,
+                     reading_k: int | None = None) -> dict:
     """Familles d'obligations selon une méthode ; place éventuellement une obligation cible.
 
     `target` : résultat d'estimation (dict renvoyé par `estimate`).
@@ -161,11 +198,13 @@ def cluster_universe(estimator, method: str = "kmeans", k: int | None = None,
     from sklearn.metrics import adjusted_rand_score
     from sklearn.neighbors import NearestNeighbors
 
+    reading_k = reading_k or estimator.settings.get("analysis", {}).get("clustering_reading_k", READING_K)
     df = real_bonds(estimator)
     encoder = ClusterEncoder(include_spread).fit(df)
     x = encoder.transform(df)
     silhouettes = choose_k(x, seed=seed)
-    chosen_k = k or int(silhouettes.loc[silhouettes["silhouette"].idxmax(), "k"])
+    verdict = structure_verdict(silhouettes, reading_k)
+    chosen_k = k or verdict["chosen_k"]
 
     all_labels, models = {}, {}
     for name in METHODS:
@@ -196,18 +235,17 @@ def cluster_universe(estimator, method: str = "kmeans", k: int | None = None,
 
     findings = []
     n_families = int((profiles["famille"] != ATYPICAL).sum())
-    findings.append(
-        f"{METHODS[method]} trouve {n_families} familles"
-        + (f" et {int((labels == -1).sum())} obligations atypiques" if (labels == -1).any() else "") + "."
-    )
-    if k is None and method != "hdbscan":
-        best = silhouettes.loc[silhouettes["silhouette"].idxmax()]
+    if method == "hdbscan":
         findings.append(
-            f"Nombre de familles choisi par la silhouette (k = {chosen_k}, score {fmt(best['silhouette'], 2)}). "
-            + ("Une silhouette sous 0,25 indique des familles qui se chevauchent : l'échantillon est plutôt un "
-               "continuum qu'un ensemble de groupes nets." if best["silhouette"] < 0.25 else
-               "Les familles sont raisonnablement séparées.")
+            f"HDBSCAN trouve {n_families} zones denses"
+            + (f" et {int((labels == -1).sum())} obligations atypiques" if (labels == -1).any() else "") + "."
         )
+    else:
+        findings.append(f"{METHODS[method]} découpe l'échantillon en {n_families} familles.")
+    if method != "hdbscan":
+        findings.append(verdict["reason"])
+        if k is not None:
+            findings.append(f"Nombre de familles fixé à la main : {k}.")
     if method == "hdbscan":
         findings.append("HDBSCAN choisit seul son nombre de familles ; les obligations hors des zones denses "
                         "sont classées atypiques, ce qui ne veut pas dire mal valorisées.")
@@ -268,7 +306,7 @@ def cluster_universe(estimator, method: str = "kmeans", k: int | None = None,
         "title": f"Clustering · {METHODS[method]}",
         "method": method, "k": chosen_k, "include_spread": include_spread,
         "findings": findings,
-        "tables": {"familles": profiles, "silhouette": silhouettes, "accord": agreement.reset_index(names="methode"),
+        "tables": {"familles": profiles, "silhouette": silhouettes, "structure": verdict, "accord": agreement.reset_index(names="methode"),
                    "variance_carte": variance, "axes": axes,
                    "part_expliquee": {"familles": round(explained_cluster, 3), "lettre": round(explained_letter, 3),
                                       "familles_et_lettre": round(explained_both, 3)},

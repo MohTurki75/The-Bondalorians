@@ -77,8 +77,27 @@ et à situer votre obligation.
 | Carte des familles | Deux axes qui résument au mieux les différences. Deux points proches sur la carte peuvent être éloignés en réalité : la carte ne montre qu'une partie de l'information (le pourcentage est indiqué). |
 | Niveau de spread de chaque famille | Des rectangles bien étagés : les familles correspondent à des niveaux de risque. |
 | Les familles expliquent-elles les spreads ? | Si « familles et notation » dépasse nettement « notation seule », les familles apportent une information nouvelle. |
-| Combien de familles ? | La silhouette mesure la séparation : au-dessus de 0,5, familles nettes ; sous 0,25, familles qui se chevauchent. |
+| Combien de familles ? | La silhouette mesure la séparation : au-dessus de 0,5, familles nettes ; sous 0,25 (ligne pointillée), familles qui se chevauchent. Le point noir est le nombre affiché. |
 | Les méthodes trouvent-elles les mêmes familles ? | 1 : familles identiques ; 0 : accord dû au hasard. |
+
+### D'où vient le nombre de familles
+
+k-means, Ward et le mélange gaussien ne choisissent pas leur nombre de
+familles : on le leur donne. Le programme teste de 2 à 10 familles avec le
+k-means et note chaque découpage par la silhouette.
+
+- **Structure nette** (meilleure silhouette au-dessus de 0,5, ou au-dessus de
+  0,25 avec un vrai sommet) : le nombre retenu est celui qui sépare le mieux.
+  Un encadré vert le signale.
+- **Pas de structure nette** (silhouette faible, ou qui baisse à chaque
+  famille ajoutée) : les obligations forment un continuum. Le nombre affiché
+  est alors un choix de lecture, 4 par défaut (`analysis.clustering_reading_k`
+  dans `config/settings.yaml`). Un encadré orange le signale.
+
+Sur les données synthétiques, la silhouette baisse de 0,35 (2 familles) à
+0,13 (10 familles) : il n'y a pas de nombre naturel de familles. Le découpage
+en 2 sépare dette senior et dette subordonnée ; en 4, il ajoute une coupe par
+notation et par maturité, plus utile pour lire l'échantillon.
 
 Option « Avec le spread » : les familles sont formées aussi sur le spread. On
 obtient des familles de risque, mais la mesure « les familles expliquent les
@@ -92,12 +111,30 @@ Ils montrent ce que les graphiques permettent de voir.
 - La notation explique à elle seule environ 80 % des écarts de spread.
 - La forêt aléatoire et CatBoost ne battent pas le modèle par comparables. Ils
   n'utilisent pas la courbe de l'émetteur.
-- Les familles se chevauchent (silhouette d'environ 0,2) et expliquent moins
-  les spreads que la notation seule. L'échantillon est un continuum plutôt
-  qu'un ensemble de groupes.
+- Il n'y a pas de structure en groupes : la silhouette baisse à chaque famille
+  ajoutée. Les 4 familles de lecture expliquent moins les spreads que la
+  notation seule (57 % contre 79 %), mais les deux ensemble en expliquent 89 %.
 - Les quatre méthodes de clustering ne trouvent pas les mêmes familles. HDBSCAN
   forme surtout des familles par secteur et devise, et classe environ un tiers
   des obligations comme atypiques.
+
+## Rapport pour un LLM
+
+Le rapport réunit en un fichier Markdown une consigne d'interprétation, un
+glossaire, tous les constats et les tableaux de l'onglet, et, si une
+obligation est donnée, sa situation (estimation, comparables, contrôles,
+famille selon chaque méthode). Il suffit de le donner à un LLM.
+
+- Dans l'interface : onglet « Analyse », encadré « Rapport pour un LLM ».
+- En ligne de commande :
+
+      python scripts/export_analyses.py --isin XS0000000010
+
+  Options : `--bond '<JSON>'` pour une obligation hors base, `--out` pour le
+  fichier de sortie, `--sans-foret` pour aller plus vite. Le rapport est écrit
+  dans `rapports/`.
+- Un exemple sur données synthétiques est versionné :
+  `rapports/analyses_donnees_synthetiques.md`.
 
 ## Pour l'agent
 
@@ -110,6 +147,7 @@ graphiques :
 | `analyze_models` | Chaque modèle, comparaison, confiance ; `include_forest=false` pour aller plus vite |
 | `analyze_comparables` | Les comparables d'une estimation (`run_id`) |
 | `analyze_clusters` | Familles selon `method` (`kmeans`, `ward`, `gmm`, `hdbscan`), avec placement de l'obligation si `run_id` est donné |
+| `analysis_report` | Le rapport Markdown complet ci-dessus |
 
 Chaque réponse contient une liste `findings` : des phrases en français dont
 tous les chiffres sont calculés. L'agent peut les reformuler, mais ne doit pas

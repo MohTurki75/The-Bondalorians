@@ -58,3 +58,8 @@ controls:
 
 feedback:
   weights: {trade: 1.0, opinion: 0.3}
+
+analysis:
+  # Nombre de familles affiché quand les données n'ont pas de structure en
+  # groupes nette (cas d'un continuum). Choix de lecture, pas un résultat.
+  clustering_reading_k: 4
