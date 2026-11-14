@@ -10,6 +10,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from bondalorians.analysis.clustering import METHODS as CLUSTER_METHODS
+from bondalorians.analysis.clustering import cluster_universe
+from bondalorians.analysis.common import for_agent
+from bondalorians.analysis.models import all_model_views, comparables_view
+from bondalorians.analysis.sample import describe_sample
 from bondalorians.config import load_settings
 from bondalorians.data import repository
 from bondalorians.data.schema import DESCRIPTIVE_COLUMNS
@@ -138,6 +143,26 @@ class Service:
 
     def calibration_report(self) -> dict:
         return self.estimator.calibration_report()
+
+    # ------------------------------------------------------------- analyses
+    # Versions résumées (constats et petits tableaux), destinées à l'agent.
+    def analyze_sample(self) -> dict:
+        return for_agent(describe_sample(self.estimator))
+
+    def analyze_models(self, include_forest: bool = True) -> dict:
+        views = all_model_views(self.estimator, include_forest=include_forest)
+        return {key: for_agent(view) for key, view in views.items()}
+
+    def analyze_comparables(self, run_id: str) -> dict:
+        return for_agent(comparables_view(self.estimator, self.get_run(run_id)["payload"]["result"]))
+
+    def analyze_clusters(self, method: str = "kmeans", run_id: str | None = None,
+                         n_clusters: int | None = None, include_spread: bool = False) -> dict:
+        if method not in CLUSTER_METHODS:
+            raise ValueError(f"Méthode inconnue : {method} (attendu : {list(CLUSTER_METHODS)}).")
+        target = self.get_run(run_id)["payload"]["result"] if run_id else None
+        return for_agent(cluster_universe(self.estimator, method, k=n_clusters,
+                                          include_spread=include_spread, target=target))
 
     # ------------------------------------------------------------ feedback
     def submit_feedback(self, run_id: str, kind: str, z_spread_bp: float,

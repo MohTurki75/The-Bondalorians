@@ -39,6 +39,7 @@ Les coefficients sont appris sur les données quand c'est possible : poids de
 la courbe émetteur, poids de distance des comparables, champion, confiance.
 
 - Déroulé pas à pas : [docs/FONCTIONNEMENT.md](docs/FONCTIONNEMENT.md)
+- Lire l'onglet « Analyse » (graphiques, clustering, glossaire) : [docs/ANALYSE.md](docs/ANALYSE.md)
 - Décisions et limites : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Démarrage
@@ -81,6 +82,7 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
       domain/               paliers et contrôles
       quant/                courbe des pairs, estimateur, réglage, CatBoost, confiance, backtest
       explain/              cascade en points de base, récit
+      analysis/             compréhension : échantillon, modèles, forêt aléatoire, clustering
       learning/             retours utilisateurs
       mcp_server/           outils MCP
       service.py            façade unique (utilisable sans MCP ni LLM)
@@ -93,7 +95,8 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 `describe_universe`, `get_bond`, `search_bonds`, `classify_complexity`,
 `find_comparables`, `estimate_zspread`, `validate_estimate`,
 `explain_estimate`, `submit_feedback`, `get_run`, `backtest_summary`,
-`calibration_report`.
+`calibration_report`, `analyze_sample`, `analyze_models`, `analyze_comparables`,
+`analyze_clusters`.
 
 ## État
 

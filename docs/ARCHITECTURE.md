@@ -105,6 +105,27 @@ apprises et le gain mesuré.
   un bruit croissant selon la notation, il les classe (corrélation de rang
   d'environ −0,3) et rééquilibre la couverture.
 
+## Analyses de compréhension
+
+Le module `analysis/` produit, pour l'interface et pour l'agent, une lecture de
+l'échantillon et de chaque modèle. Il ne modifie aucune estimation.
+
+- **Échantillon** : composition, niveaux de spread, part des écarts expliquée
+  par chaque caractéristique.
+- **Modèles** : courbe des pairs, écart émetteur, réglage des comparables,
+  SHAP de CatBoost, corrections du modèle C, effets comparés, erreur hors
+  échantillon par palier, calibration du score et de l'intervalle.
+- **Forêt aléatoire** : modèle de comparaison évalué sur les plis exacts du
+  backtest ; elle n'entre pas dans l'estimation.
+- **Clustering** : k-means, Ward, mélange gaussien et HDBSCAN sur les mêmes
+  variables normalisées ; carte en deux axes (analyse en composantes
+  principales), profils de familles, accord entre méthodes, placement de
+  l'obligation estimée.
+
+Chaque analyse renvoie des constats rédigés dont tous les chiffres sont
+calculés (`findings`), de petits tableaux (`tables`) et les données des
+graphiques (`points`), retirées des réponses à l'agent.
+
 ## Explicabilité
 
 1. Cascade en points de base, de l'obligation moyenne de l'univers à

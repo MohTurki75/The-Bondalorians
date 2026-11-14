@@ -17,7 +17,8 @@ dependencies = [
 ml = ["catboost>=1.2"]
 pg = ["psycopg[binary]>=3.1"]
 mcp = ["mcp>=1.2"]
-ui = ["streamlit>=1.60"]
+ui = ["streamlit>=1.67", "scikit-learn>=1.5"]
+analysis = ["scikit-learn>=1.5"]
 dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]

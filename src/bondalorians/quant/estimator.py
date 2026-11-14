@@ -351,6 +351,9 @@ class ZSpreadEstimator:
             row = match.iloc[0].to_dict()
             return row, bond, float(row["z_spread"])
         target = prepare_target(bond)
+        if bond.get("amount_outstanding") in (None, "") or pd.isna(bond.get("amount_outstanding")):
+            # Taille inconnue : on prend la taille médiane de l'univers, pas une taille nulle.
+            target["log_amt"] = float(np.median(self.a_["log_amt"]))
         return target, target.get("isin"), None
 
     def estimate(self, bond: str | dict) -> dict:

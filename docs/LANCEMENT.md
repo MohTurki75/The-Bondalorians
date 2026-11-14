@@ -20,7 +20,7 @@ Prérequis : Python 3.10 ou plus récent.
     cd the-bondalorians
     python -m venv .venv
     source .venv/bin/activate          # Windows : .venv\Scripts\activate
-    pip install -e ".[ml,pg,mcp,ui,dev]"
+    pip install -e ".[ml,pg,mcp,ui,dev]"      # ui inclut scikit-learn pour l'onglet Analyse
 
 Vérification :
 
