@@ -7,6 +7,9 @@ le graphique, puis ce qu'il faut en retenir (constats calculés par
 
 from __future__ import annotations
 
+import importlib.util
+import sys
+
 import altair as alt
 import numpy as np
 import pandas as pd
@@ -544,6 +547,16 @@ def render(service, result: dict | None) -> None:
     section = st.segmented_control(
         "Partie", ["Échantillon", "Modèles un par un", "Comparaison et confiance", "Clustering"],
         default="Échantillon", required=True, key="analysis_section", label_visibility="collapsed")
+    if section != "Échantillon" and importlib.util.find_spec("sklearn") is None:
+        # scikit-learn manque dans le Python qui fait tourner l'interface : on donne la
+        # commande exacte pour ce Python-là, pas un « pip » qui pourrait en viser un autre.
+        st.error(
+            "Cette partie a besoin de scikit-learn, qui n'est pas installé dans le Python qui fait tourner "
+            "l'interface. Arrêtez l'interface, lancez la commande ci-dessous dans un terminal, puis redémarrez :"
+        )
+        st.code(f'"{sys.executable}" -m pip install "scikit-learn>=1.5"', language="bash")
+        st.caption("La partie « Échantillon » fonctionne sans scikit-learn.")
+        return
     if section == "Échantillon":
         _sample_section(estimator, version, result, mode)
     elif section == "Modèles un par un":
