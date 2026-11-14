@@ -31,7 +31,7 @@ from bondalorians.quant.confidence import (
 from bondalorians.quant.conformal import conformal_quantile
 from bondalorians.quant.gbm import SpreadCorrector, SpreadGBM, catboost_available
 from bondalorians.quant.peer_curve import PeerCurve
-from bondalorians.quant.shrinkage import estimate_shrinkage_k
+from bondalorians.quant.shrinkage import estimate_shrinkage_k, estimate_slope_shrinkage
 from bondalorians.quant.tuning import WEIGHT_KEYS, tune_comparables
 
 UNSEEN_KEY = "emetteur_inconnu"
@@ -96,7 +96,8 @@ class ZSpreadEstimator:
 
     def fit_base(self, df: pd.DataFrame) -> None:
         self.df_ = df.reset_index(drop=True)
-        self.peer_ = PeerCurve(self.settings["peer_curve"]["ridge"]).fit(self.df_)
+        curve = self.settings["peer_curve"]
+        self.peer_ = PeerCurve(curve["ridge"], enriched=curve.get("enriched", False)).fit(self.df_)
         self.a_ = {c: self.df_[c].to_numpy(dtype=object) for c in _ARRAYS_OBJECT}
         self.a_.update({c: self.df_[c].to_numpy(dtype=float) for c in _ARRAYS_FLOAT})
         self.a_["resid"] = np.log(self.a_["z_spread"]) - self.peer_.predict_log(self.df_)
@@ -106,6 +107,12 @@ class ZSpreadEstimator:
         else:
             self.shrinkage_ = {"k": float(k_setting), "estimated": False}
         self.k_ = self.shrinkage_["k"]
+        noise_sd = self.shrinkage_.get("noise_sd")
+        self.noise_sd_ = float(noise_sd) if noise_sd else float(np.std(self.a_["resid"]))
+        self.slope_ = {"k_b": None, "estimated": False}
+        if self.settings["comparables"].get("issuer_slope", False):
+            self.slope_ = estimate_slope_shrinkage(
+                self.a_["resid"], self.a_["issuer"], self.a_["log_t"], self.noise_sd_**2)
         digest = hashlib.sha256(
             pd.util.hash_pandas_object(self.df_[["issuer", "maturity_years", "z_spread"]]).to_numpy().tobytes()
         ).hexdigest()[:10]
@@ -154,10 +161,24 @@ class ZSpreadEstimator:
         if not offset_mask.any():
             offset_mask = issuer_mask
         n_issuer = float(a["obs_weight"][offset_mask].sum())
-        r_issuer = 0.0
+        r_issuer, slope, lam_b, delta_t, issuer_disp = 0.0, 0.0, 0.0, 0.0, float("nan")
         if n_issuer > 0:
-            r_issuer = float(np.average(a["resid"][offset_mask], weights=a["obs_weight"][offset_mask]))
+            w, r, lt = a["obs_weight"][offset_mask], a["resid"][offset_mask], a["log_t"][offset_mask]
+            r_issuer = float(np.average(r, weights=w))
+            k_b = self.slope_.get("k_b")
+            if k_b is not None and np.isfinite(k_b) and len(r) >= 2:
+                center = float(np.average(lt, weights=w))
+                sxx = float((w * (lt - center) ** 2).sum())
+                if sxx > 1e-9:
+                    slope = float((w * (lt - center) * (r - r_issuer)).sum() / sxx)
+                    lam_b = sxx / (sxx + k_b)
+                    # Pas d'extrapolation lointaine : au plus 0,3 en log au-delà des maturités de l'émetteur.
+                    delta_t = float(np.clip(t["log_t"] - center, lt.min() - center - 0.3, lt.max() - center + 0.3))
+            if len(r) >= 2:
+                fitted = r_issuer + lam_b * slope * (lt - (np.average(lt, weights=w) if lam_b else 0.0))
+                issuer_disp = float(np.sqrt(np.average((r - fitted) ** 2, weights=w)))
         lam = n_issuer / (n_issuer + self.k_)
+        issuer_term = lam * r_issuer + lam_b * slope * delta_t
 
         # Comparables hors émetteur : filtres durs relâchés si trop peu de candidats.
         base = keep & ~same_issuer
@@ -183,6 +204,8 @@ class ZSpreadEstimator:
         )
         return {
             "peer_log": peer_log, "lam": lam, "r_issuer": r_issuer, "n_issuer": int(offset_mask.sum()),
+            "issuer_term": issuer_term, "issuer_slope": slope, "lam_slope": lam_b, "delta_t": delta_t,
+            "issuer_disp": issuer_disp,
             "idx": idx, "components": components, "filter_level": level,
             "issuer_mask": issuer_mask, "near": near,
             "segment_count": int((near & (a["sector"] == t["sector"])).sum()),
@@ -195,7 +218,7 @@ class ZSpreadEstimator:
         """Modèle A complet pour une cible."""
         core = self.candidates(t, exclude_isin, exclude_issuer, peer_log)
         a, params, idx = self.a_, self.params_, core["idx"]
-        r_peers, n_eff, mean_distance = 0.0, 0.0, 1.0
+        r_peers, n_eff, mean_distance, peer_disp = 0.0, 0.0, 1.0, float("nan")
         top, weights, distances = idx[:0], np.array([]), np.array([])
         if len(idx):
             d = core["components"] @ np.array([params["weights"][k] for k in WEIGHT_KEYS])
@@ -205,11 +228,13 @@ class ZSpreadEstimator:
             total = weights.sum()
             if total > 0:
                 r_peers = float((weights * a["resid"][top]).sum() / total)
+                # Désaccord des comparables entre eux, une fois ramenés au profil de la cible.
+                peer_disp = float(np.sqrt((weights * (a["resid"][top] - r_peers) ** 2).sum() / total))
                 n_eff = float(total**2 / (weights**2).sum())
                 mean_distance = float((weights * distances).sum() / total)
         core.update({
-            "log_a": core["peer_log"] + core["lam"] * core["r_issuer"] + (1 - core["lam"]) * r_peers,
-            "r_peers": r_peers, "n_eff": n_eff, "mean_distance": mean_distance,
+            "log_a": core["peer_log"] + core["issuer_term"] + (1 - core["lam"]) * r_peers,
+            "r_peers": r_peers, "n_eff": n_eff, "mean_distance": mean_distance, "peer_disp": peer_disp,
             "top": top, "weights": weights, "distances": distances,
         })
         return core
@@ -261,7 +286,7 @@ class ZSpreadEstimator:
                         "row_id": int(row_id), "scheme": scheme, "key": core["key"],
                         "y_log": math.log(row["z_spread"]), "peer_log": core["peer_log"],
                         "log_a": core["log_a"], "log_b": log_b, "log_c": log_c,
-                        **error_features(row, core, log_b, log_c),
+                        **error_features(row, core, log_b, log_c, self._dispersion_args()),
                     })
         oof = pd.DataFrame(records)
         # Le schéma « non vu » ne sert qu'au cas de l'émetteur inconnu, et réciproquement.
@@ -308,6 +333,12 @@ class ZSpreadEstimator:
             "error_model": ErrorModel(self.use_ml).fit(x, err), "sigma_reference": np.sort(sigma),
         }
 
+    def _dispersion_args(self) -> dict | None:
+        """Indicateurs de dispersion pour le modèle de difficulté (None : désactivés)."""
+        if not self.settings["confidence"].get("dispersion_features", False):
+            return None
+        return {"noise_sd": self.noise_sd_}
+
     def backtest_summary(self) -> list[dict]:
         """Erreur hors échantillon par palier, en points de base."""
         if self.calibration_ is None:
@@ -335,6 +366,9 @@ class ZSpreadEstimator:
             tuning = {k: v for k, v in self.tuning_.items() if k != "tune_row_ids"}
         return _jsonable({
             "issuer_shrinkage": self.shrinkage_,
+            "issuer_slope": self.slope_,
+            "peer_curve_enriched": self.settings["peer_curve"].get("enriched", False),
+            "dispersion_features": self.settings["confidence"].get("dispersion_features", False),
             "comparables_params": self.params_,
             "comparables_tuning": tuning,
             "champion_by_tier": (self.calibration_ or {}).get("champion"),
@@ -377,7 +411,7 @@ class ZSpreadEstimator:
         caveats = list(STANDING_CAVEATS)
         interval, confidence = None, {"score": None, "grade": None}
         if cal is not None:
-            features = error_features(t, core, log_b, log_c)
+            features = error_features(t, core, log_b, log_c, self._dispersion_args())
             sigma = float(cal["error_model"].predict([[features[f] for f in ERROR_FEATURES]])[0])
             q = cal["quantile"].get(core["key"])
             if q is None:
@@ -435,13 +469,16 @@ class ZSpreadEstimator:
             "issuer_offset": {
                 "n_bonds": core["n_issuer"], "mean_residual_log": round(core["r_issuer"], 4),
                 "lambda": round(lam, 3), "k": round(self.k_, 3),
+                "slope_log_per_log_year": round(core["issuer_slope"], 4), "slope_weight": round(core["lam_slope"], 3),
+                "slope_effect_log": round(core["lam_slope"] * core["issuer_slope"] * core["delta_t"], 4),
             },
             "filter_level": FILTER_LEVELS[core["filter_level"]],
             "comparables": comparables,
             "waterfall": build_waterfall(
                 self.peer_.mean_log_, self.peer_.group_contributions(t),
-                lam * core["r_issuer"],
-                f"Écart émetteur ({core['n_issuer']} obligation(s), retenu à {100 * lam:.0f} %)",
+                core["issuer_term"],
+                f"Écart émetteur ({core['n_issuer']} obligation(s), retenu à {100 * lam:.0f} %"
+                + (", pente de maturité comprise)" if core["lam_slope"] > 0.05 and abs(core["delta_t"]) > 0.05 else ")"),
                 (1 - lam) * core["r_peers"], final_log,
             ),
             "controls": run_controls(

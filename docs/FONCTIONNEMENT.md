@@ -37,6 +37,17 @@ interaction, la séniorité, le secteur, la devise, le type de coupon et
 l'option de remboursement anticipé. Elle donne le spread « normal » d'une
 obligation d'un profil donné. Ses coefficients sont appris sur les données.
 
+La version enrichie (activée par défaut, `peer_curve.enriched`) ajoute des
+termes qui restent lisibles dans la cascade :
+
+- une courbure de maturité : les courbes s'aplatissent sur les longues
+  maturités ;
+- une sensibilité à la notation propre à chaque secteur : une dégradation ne
+  coûte pas la même chose à une foncière et à un service public ;
+- une prime de séniorité qui varie avec la notation : la dette subordonnée
+  d'un émetteur faible coûte plus cher ;
+- le pays de l'émetteur et la taille de la souche (liquidité).
+
 ### 4. Résidus
 
 Pour chaque obligation, le programme calcule ce que la courbe n'explique pas.
@@ -55,6 +66,15 @@ L'écart d'un émetteur à la courbe est retenu à hauteur de
 Si les émetteurs diffèrent beaucoup entre eux et que leurs obligations sont
 cohérentes, `k` est petit : une seule obligation suffit à faire confiance à
 l'émetteur. C'est une formule statistique (analyse de variance), pas du ML.
+
+La **pente de maturité propre à l'émetteur** (activée par défaut,
+`comparables.issuer_slope`) suit la même logique. Pour chaque émetteur, le
+programme mesure si ses résidus montent ou descendent avec la maturité. Cette
+pente est retenue à hauteur de `Sxx / (Sxx + k_b)`, où `Sxx` mesure l'étendue
+des maturités de l'émetteur : des obligations toutes proches en maturité ne
+disent rien de la pente. `k_b` est estimé par les moments, en comparant la
+dispersion des pentes observées à leur bruit d'estimation. Sur des données
+sans pente propre, `k_b` devient très grand et la pente est neutralisée.
 
 ### 6. Réglage des comparables (appris)
 
@@ -92,9 +112,11 @@ Le backtest produit trois choses :
 1. **Le champion par palier.** Le modèle A reste champion, sauf si un modèle
    CatBoost réduit l'erreur médiane d'au moins 5 %.
 2. **Le modèle de difficulté (appris).** Il prédit l'erreur attendue d'une
-   estimation à partir de douze indicateurs : nombre effectif de comparables,
+   estimation à partir de quinze indicateurs : nombre effectif de comparables,
    distance moyenne, poids de l'émetteur, désaccord entre modèles, densité du
-   segment, notation, maturité, etc.
+   segment, notation, maturité, etc., et (`confidence.dispersion_features`)
+   le désaccord des comparables entre eux et la dispersion des obligations de
+   l'émetteur autour de sa courbe.
 3. **La largeur de l'intervalle à 90 %**, par prédiction conforme.
 
 ## Phase 2 : estimation, à chaque demande
@@ -113,7 +135,9 @@ La courbe des pairs est appliquée au profil de la cible.
 
 Le programme calcule la moyenne des résidus des autres obligations de
 l'émetteur, dans la même devise si possible, et la retient à hauteur de
-`lambda`.
+`lambda`. S'y ajoute la pente de maturité de l'émetteur, rétrécie, appliquée à
+l'écart entre la maturité de la cible et la maturité moyenne de l'émetteur.
+L'extrapolation est limitée à 0,3 en log au-delà des maturités de l'émetteur.
 
 ### 4. Écart des comparables
 
@@ -178,6 +202,7 @@ senior du même émetteur, accord entre modèles, nombre de comparables.
 |---|---|---|
 | Coefficients de la courbe des pairs | Appris | Régression |
 | `k` du poids émetteur | Appris | Analyse de variance |
+| `k_b` de la pente émetteur | Appris | Méthode des moments sur les pentes par émetteur |
 | Poids de distance, noyau, nombre de comparables | Appris | Recherche sur le backtest, avec validation |
 | Modèles B et C | Appris | CatBoost |
 | Champion par palier | Appris | Backtest, avec marge de 5 % |
@@ -192,6 +217,41 @@ senior du même émetteur, accord entre modèles, nombre de comparables.
 Mesures sur obligations mises de côté, données synthétiques
 (`python scripts/ablation.py --ml`). Elles valident la mécanique, pas la
 précision sur données réelles.
+
+### Deux profils de données synthétiques
+
+- **Simple** (`make_synthetic.py --simple`) : modèle log-linéaire proche de
+  la courbe des pairs d'origine. Il favorise le modèle A par construction.
+- **Réaliste** (par défaut) : il ajoute des courbes qui s'aplatissent en haut
+  rendement, une sensibilité à la notation propre au secteur, une prime de
+  subordination plus forte pour les émetteurs faibles, une pente de maturité
+  propre à chaque émetteur, un effet pays, une prime d'illiquidité des petites
+  souches, un bruit plus fort pour les notations faibles et la dette
+  subordonnée, et 4 % de notations en retard sur le marché.
+
+### Dernières améliorations (profil réaliste)
+
+| Étape | Erreur médiane, émetteur connu | Erreur médiane, émetteur inconnu | Largeur de l'intervalle (émetteur connu) |
+|---|---|---|---|
+| Version précédente | 18,3 pb (9,8 %) | 32,4 pb (16,5 %) | 56 % |
+| + courbe des pairs enrichie | 15,8 pb (9,0 %) | 28,2 pb (15,2 %) | 53 % |
+| + pente de maturité par émetteur | 15,5 pb (8,4 %) | 28,2 pb (15,2 %) | 50 % |
+| + dispersion dans la confiance | 15,5 pb (8,4 %) | 28,2 pb (15,2 %) | 49 % |
+| + CatBoost (B et C) | Aucun gain | Aucun gain | — |
+
+- La courbe enrichie fait le gros du gain : −14 % d'erreur en pb pour un
+  émetteur connu, −13 % pour un émetteur inconnu, −20 % sur la dette
+  subordonnée.
+- La pente par émetteur gagne environ 3 % d'erreur relative (6 % dans le
+  palier simple), de façon régulière sur quatre tirages différents.
+- La dispersion ne change pas l'estimation, seulement l'intervalle : 3 % plus
+  étroit à couverture égale, et un score un peu mieux classé (corrélation de
+  rang −0,28 à −0,31).
+- Sur le profil simple, ces ajouts ne gagnent rien (variations de ±4 %, dans
+  le bruit) et la pente émetteur est neutralisée : ils ne dégradent pas un
+  marché qui n'a pas ces effets.
+
+### Premières améliorations
 
 | Amélioration | Effet avec bruit uniforme | Effet avec bruit croissant selon la notation |
 |---|---|---|

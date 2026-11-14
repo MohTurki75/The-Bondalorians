@@ -1,7 +1,16 @@
 """Courbe des pairs : régression ridge du log du Z-Spread sur les caractéristiques.
 
-Modèle volontairement simple et lisible. Il sert de référence plancher, de
-support aux ajustements des comparables et de base à la cascade en points de base.
+Modèle volontairement lisible. Il sert de référence plancher, de support aux
+ajustements des comparables et de base à la cascade en points de base.
+
+Version de base : notation (et son carré), maturité, interaction notation ×
+maturité, option de remboursement, séniorité, secteur, devise, type de coupon.
+
+Version enrichie (`enriched=True`), chaque terme restant explicable :
+- courbure de maturité (log de la maturité au carré) : les courbes s'aplatissent ;
+- sensibilité à la notation propre à chaque secteur ;
+- prime de séniorité qui varie avec la notation ;
+- pays et taille de la souche (liquidité).
 """
 
 from __future__ import annotations
@@ -10,6 +19,8 @@ import numpy as np
 import pandas as pd
 
 CATEGORICALS = ["seniority", "sector", "currency", "coupon_type"]
+NOTCH_CENTER = 9.0  # BBB : les interactions sont centrées sur le milieu de l'échelle
+AMOUNT_CENTER = 20.0  # log de l'encours (environ 500 millions)
 
 # Regroupement des colonnes de la régression pour la cascade explicative.
 GROUP_LABELS = {
@@ -18,33 +29,48 @@ GROUP_LABELS = {
     "seniority": "Séniorité",
     "sector": "Secteur",
     "currency": "Devise",
+    "country": "Pays",
     "coupon_type": "Type de coupon",
     "callable": "Option de remboursement anticipé",
+    "size": "Taille de la souche",
 }
 
 
 class PeerCurve:
-    def __init__(self, ridge: float = 0.01):
+    def __init__(self, ridge: float = 0.01, enriched: bool = False):
         self.ridge = ridge
+        self.enriched = enriched
 
-    def _design(self, df: pd.DataFrame) -> np.ndarray:
+    def _blocks(self, df: pd.DataFrame) -> list[tuple[str, np.ndarray]]:
         notch = df["notch"].to_numpy(dtype=float)
         log_t = df["log_t"].to_numpy(dtype=float)
         blocks = [
-            np.ones(len(df)), notch, notch**2, log_t, log_t * notch,
-            df["callable"].to_numpy(dtype=float),
+            ("_const", np.ones(len(df))), ("notch", notch), ("notch", notch**2),
+            ("log_t", log_t), ("log_t", log_t * notch), ("callable", df["callable"].to_numpy(dtype=float)),
         ]
         for column in CATEGORICALS:
             values = df[column].to_numpy()
-            blocks.extend((values == level).astype(float) for level in self.levels_[column])
-        return np.column_stack(blocks)
+            blocks += [(column, (values == level).astype(float)) for level in self.levels_[column]]
+        if self.enriched:
+            centered = notch - NOTCH_CENTER
+            blocks.append(("log_t", log_t**2))
+            sectors = df["sector"].to_numpy()
+            blocks += [("sector", (sectors == level) * centered) for level in self.levels_["sector"]]
+            blocks.append(("seniority", df["sen_rank"].to_numpy(dtype=float) * centered))
+            countries = df["country"].to_numpy()
+            blocks += [("country", (countries == level).astype(float)) for level in self.levels_["country"]]
+            blocks.append(("size", df["log_amt"].to_numpy(dtype=float) - AMOUNT_CENTER))
+        return blocks
+
+    def _design(self, df: pd.DataFrame) -> np.ndarray:
+        return np.column_stack([column for _, column in self._blocks(df)])
 
     def fit(self, df: pd.DataFrame) -> "PeerCurve":
-        self.levels_ = {c: sorted(df[c].unique()) for c in CATEGORICALS}
-        self.groups_ = ["_const", "notch", "notch", "log_t", "log_t", "callable"]
-        for column in CATEGORICALS:
-            self.groups_.extend([column] * len(self.levels_[column]))
-        x = self._design(df)
+        columns = CATEGORICALS + (["country"] if self.enriched else [])
+        self.levels_ = {c: sorted(df[c].unique()) for c in columns}
+        blocks = self._blocks(df)
+        self.groups_ = [group for group, _ in blocks]
+        x = np.column_stack([column for _, column in blocks])
         y = np.log(df["z_spread"].to_numpy(dtype=float))
         weights = df["obs_weight"].to_numpy(dtype=float)
         penalty = self.ridge * np.eye(x.shape[1])
@@ -68,6 +94,8 @@ class PeerCurve:
         x = self._design(pd.DataFrame([target]))[0] * self.coef_
         out = {}
         for group in GROUP_LABELS:
+            if group not in self.group_means_:
+                continue
             total = sum(x[i] for i, g in enumerate(self.groups_) if g == group)
             out[group] = float(total - self.group_means_[group])
         return out

@@ -93,7 +93,7 @@ def tune_comparables(estimator, trials: int, share: float, seed: int, floor: flo
                 idx = cand["idx"]
                 cases["tune" if i in tune_ids else "valid"].append({
                     "y": float(np.log(rows[i]["z_spread"])),
-                    "base": cand["peer_log"] + cand["lam"] * cand["r_issuer"],
+                    "base": cand["peer_log"] + cand["issuer_term"],
                     "one_minus_lam": 1 - cand["lam"],
                     "components": cand["components"].astype(np.float32),
                     "resid": sub.a_["resid"][idx], "obs": sub.a_["obs_weight"][idx],

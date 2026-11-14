@@ -62,7 +62,8 @@ Ni prix, ni rendement, ni verdict cher/pas cher.
 multiplicatifs entre notations.
 
 **Données de développement : synthétiques.** Elles servent à tester la chaîne
-en attendant les vraies :
+en attendant les vraies. Deux profils existent ; le profil **réaliste** est
+celui par défaut, le profil **simple** est décrit ci-dessous :
 
 - 4 000 obligations, environ 540 émetteurs, répartis selon une loi de Pareto
   plafonnée ; 14 % des émetteurs n'ont qu'une obligation.
@@ -70,9 +71,17 @@ en attendant les vraies :
   en notation, pente de maturité qui dépend de la notation, effets de
   séniorité, de secteur et de devise, effet aléatoire par émetteur
   (écart-type 0,15) et bruit (écart-type 0,08).
-- **Conséquence importante :** ce générateur ressemble beaucoup au modèle A
-  ci-dessous. Les résultats synthétiques flattent donc le modèle A et ne
-  disent rien du marché réel.
+- **Conséquence importante :** ce profil simple ressemble beaucoup au modèle
+  A d'origine. Ses résultats flattent le modèle A et ne disent rien du marché
+  réel.
+- **Profil réaliste** : il ajoute des courbes qui s'aplatissent en haut
+  rendement, une sensibilité à la notation propre au secteur, une prime de
+  subordination plus forte pour les émetteurs faibles, une pente de maturité
+  propre à chaque émetteur (écart-type 0,08), un effet pays, une prime
+  d'illiquidité des petites souches, un bruit qui croît avec la notation et
+  la subordination, et 4 % de notations en retard sur le marché. Ces effets
+  ont été écrits par nous : un modèle conçu pour eux les capture forcément
+  mieux.
 
 ## 3. Les paliers de difficulté
 
@@ -98,6 +107,10 @@ coupon.
 Elle donne le spread « normal » d'un profil. Les **résidus** (log observé
 moins courbe) portent ce que la courbe n'explique pas.
 
+**Version enrichie (par défaut)** : elle ajoute log_t², notch centré × secteur,
+sen_rank × notch centré (centrage sur BBB), le pays et le log de l'encours
+centré. Chaque terme est rattaché à un groupe de la cascade explicative.
+
 ### 4.2 Modèle A : comparables ajustés (modèle transparent)
 
 En log :
@@ -112,9 +125,17 @@ le nombre de ces obligations.
 
 **k est estimé par analyse de variance** (estimateur des moments, plan non
 équilibré) : variance du bruit à l'intérieur d'un émetteur divisée par la
-variance entre émetteurs, bornée entre 0,05 et 50. Sur les données
-synthétiques, k = 0,28 : une seule obligation de l'émetteur suffit à retenir
-78 % de son écart.
+variance entre émetteurs, bornée entre 0,05 et 50. Sur le profil réaliste,
+k = 1,05 : une seule obligation de l'émetteur fait retenir 49 % de son écart.
+
+**Pente de maturité propre à l'émetteur (par défaut).** Pente des résidus de
+l'émetteur sur log_t, rétrécie par λ_b = Sxx / (Sxx + k_b), où Sxx est la
+somme des carrés des écarts de log_t de l'émetteur. k_b = σ² / τ², avec τ²
+= variance des pentes observées moins leur variance d'échantillonnage
+moyenne (méthode des moments, émetteurs d'au moins 3 obligations). Effet sur
+la cible : λ_b × pente × (log_t cible − log_t moyen de l'émetteur), avec une
+extrapolation limitée à 0,3 au-delà des maturités de l'émetteur. Sans pente
+réelle dans les données, k_b devient infini et la pente est neutralisée.
 
 **Écart des comparables** (hors émetteur) :
 
@@ -206,7 +227,10 @@ Un modèle ML doit faire au moins 5 % mieux que le modèle A pour le remplacer.
 partir de 12 indicateurs : nombre effectif de comparables, distance moyenne,
 λ, log du nombre d'obligations de l'émetteur, niveau de relâchement des
 filtres, notch, log_t, sen_rank, densité du segment, écart A−B, ampleur de la
-correction C, émetteur inconnu. C'est un CatBoost de profondeur 3 (ou une
+correction C, émetteur inconnu ; et trois indicateurs de dispersion
+(par défaut) : écart-type pondéré des résidus des comparables autour de leur
+moyenne, écart-type des résidus de l'émetteur autour de sa courbe, et une
+indicatrice de disponibilité de ce dernier. C'est un CatBoost de profondeur 3 (ou une
 régression ridge sans CatBoost), entraîné hors échantillon.
 
 **Intervalle.** Prédiction conforme normalisée : quantile corrigé pour
@@ -234,6 +258,40 @@ l'intervalle ne changent qu'au recalcul complet.
 ## 5. Résultats mesurés (données synthétiques)
 
 Toutes les erreurs sont hors échantillon.
+
+### Profil réaliste, version actuelle (backtest interne)
+
+| Palier | Obligations testées | Courbe des pairs | A | B (CatBoost) | C (A corrigé) | Forêt aléatoire |
+|---|---|---|---|---|---|---|
+| Simple | 1 262 | 21,3 | 11,1 | 18,4 | 10,2 | 15,8 |
+| Intermédiaire | 1 818 | 19,4 | 14,2 | 19,3 | 14,3 | 19,9 |
+| Complexe | 410 | 122 | 116 | 134 | 118 | 134 |
+| Émetteur inconnu | 3 600 | 24,1 | 24,8 | 24,6 | 25,0 | 28,0 |
+
+- Le modèle A reste retenu dans tous les paliers. C fait 8 % mieux que A en
+  points de base dans le palier simple, mais pas en erreur relative, qui sert
+  au choix.
+- Score de confiance : erreur médiane de 5,5 % dans les 10 % de cas jugés les
+  plus faciles, 20,6 % dans les 10 % les plus difficiles, en progression
+  régulière ; corrélation de rang 0,34. L'erreur prévue reste 5 à 25 % sous
+  l'erreur réalisée (la calibration conforme corrige la couverture).
+- Couverture de l'intervalle à 90 % : 90 % dans chaque palier ; largeur
+  médiane de 39 % du spread (simple) à 93 % (complexe).
+
+### Effet des dernières améliorations (profil réaliste, obligations mises de côté)
+
+| Étape | Émetteur connu | Émetteur inconnu |
+|---|---|---|
+| Version précédente | 18,3 pb (9,8 %) | 32,4 pb (16,5 %) |
+| + courbe des pairs enrichie | 15,8 pb (9,0 %) | 28,2 pb (15,2 %) |
+| + pente de maturité par émetteur | 15,5 pb (8,4 %) | 28,2 pb (15,2 %) |
+| + dispersion dans la confiance | identique ; intervalle 3 % plus étroit | identique |
+| + CatBoost (B et C) | aucun gain | aucun gain |
+
+Sur le profil simple, ces ajouts ne gagnent ni ne perdent rien de
+significatif.
+
+### Profil simple, version précédente (pour mémoire)
 
 **Erreur médiane en points de base, par palier et par modèle :**
 
@@ -284,18 +342,18 @@ de 5 %. Le correcteur C améliore A dans 49 % des cas : c'est du bruit.
    presque le modèle A ; le vrai test sera sur les données réelles.
 2. **Émetteur inconnu.** L'erreur est double et l'intervalle très large ; les
    comparables y apportent peu par rapport à la courbe des pairs.
-3. **Dette subordonnée** (palier complexe). Erreur de 41 pb ; aucune
+3. **Dette subordonnée** (palier complexe). C'est le palier le plus faible
+   (plus de 100 pb d'erreur médiane sur le profil réaliste) ; aucune
    modélisation propre des options de remboursement ou de l'extension des
-   AT1.
+   AT1. La prime de séniorité selon la notation l'a réduite de 20 %.
 4. **Option de remboursement anticipé.** Une simple indicatrice : pas d'OAS,
    pas de maturité au « call ».
-5. **Score de confiance.** Il classe moyennement les cas et sous-estime
-   l'erreur.
-6. **Un seul k pour tout l'univers.** La dispersion intra-émetteur peut
-   varier selon les secteurs et les notations.
-7. **Aucune structure de courbe par émetteur.** L'écart émetteur est
-   constant quelle que soit la maturité ; une pente propre à l'émetteur n'est
-   pas modélisée.
+5. **Score de confiance.** Il classe mieux les cas qu'avant (corrélation de
+   rang 0,34) mais sous-estime encore l'erreur avant calibration.
+6. **Un seul k et un seul k_b pour tout l'univers.** La dispersion
+   intra-émetteur peut varier selon les secteurs et les notations.
+7. **Courbe émetteur limitée à un niveau et une pente.** Pas de courbure
+   propre à l'émetteur.
 8. **Pas de liquidité, de taille relative, d'ancienneté de l'émission ni de
    prime de nouvelle émission.**
 9. **Pas de dimension temporelle**, et la notation est supposée toujours
@@ -320,17 +378,15 @@ chacune :
 
 Pistes qui m'intéressent, à confirmer ou à écarter avec arguments :
 
-- courbe émetteur avec niveau et pente (modèle mixte ou bayésien
-  hiérarchique) au lieu d'un écart constant ;
-- k différent par segment ;
+- k et k_b différents par segment ;
 - meilleure modélisation de la dette subordonnée et des obligations
   remboursables par anticipation ;
 - apprentissage métrique pour la distance des comparables ;
 - combinaison pondérée des modèles (stacking) au lieu d'un champion par
   palier ;
 - prédiction conforme conditionnelle mieux calibrée ;
-- générateur synthétique plus réaliste (non-linéarités, hétéroscédasticité,
-  sauts de notation), pour éviter qu'il ne favorise le modèle A.
+- ce qu'il faudrait mesurer en priorité le jour 1, sur les données réelles,
+  pour savoir si les effets du profil réaliste existent vraiment.
 
 Indique clairement ce qui relève du fait établi, du consensus de la pratique
 crédit, de l'opinion débattue ou de la spéculation.
