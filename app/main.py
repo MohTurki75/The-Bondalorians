@@ -20,6 +20,8 @@ from bondalorians.data.schema import RATING_SCALE, SENIORITY_RANK
 from bondalorians.data.stores import JsonlStore, PostgresStore
 from bondalorians.service import Service
 
+import analysis_tab
+
 ROOT = Path(__file__).resolve().parents[1]
 SYNTHETIC = ROOT / "data" / "synthetic_bonds.csv"
 MODEL_LABELS = {
@@ -234,7 +236,8 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-tab_estimate, tab_backtest, tab_log = st.tabs(["Estimation", "Backtest et calibrage", "Journal d'audit"])
+tab_estimate, tab_analysis, tab_backtest, tab_log = st.tabs(
+    ["Estimation", "Analyse", "Backtest et calibrage", "Journal d'audit"])
 
 with tab_estimate:
     if "notice" in st.session_state:
@@ -297,6 +300,9 @@ with tab_estimate:
         st.divider()
         show_result(st.session_state["result"])
         feedback_form(st.session_state["result"])
+
+with tab_analysis:
+    analysis_tab.render(service, st.session_state.get("result"))
 
 with tab_backtest:
     st.subheader("Erreur hors échantillon par palier")

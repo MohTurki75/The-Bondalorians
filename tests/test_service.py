@@ -68,8 +68,23 @@ def test_mcp_server_exposes_business_tools(service, new_bond, monkeypatch):
     assert names == {
         "describe_universe", "get_bond", "search_bonds", "classify_complexity", "find_comparables",
         "estimate_zspread", "validate_estimate", "explain_estimate", "submit_feedback", "get_run",
-        "backtest_summary", "calibration_report",
+        "backtest_summary", "calibration_report", "analyze_sample", "analyze_models",
+        "analyze_comparables", "analyze_clusters",
     }
     result = server.estimate_zspread(characteristics=new_bond)
     assert server.validate_estimate(result["run_id"])["run_id"] == result["run_id"]
     assert server.classify_complexity(characteristics=new_bond)["tier"] == "complexe"
+
+
+def test_analyses_for_the_agent(service, new_bond):
+    import json
+
+    pytest.importorskip("sklearn")
+    run_id = service.estimate(new_bond)["run_id"]
+    results = [service.analyze_sample(), service.analyze_models(include_forest=False),
+               service.analyze_comparables(run_id), service.analyze_clusters("ward", run_id)]
+    for result in results:
+        json.dumps(result)
+    assert "points" not in results[0] and results[3]["tables"]["placement"]
+    with pytest.raises(ValueError):
+        service.analyze_clusters("dbscan")

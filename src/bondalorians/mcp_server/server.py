@@ -117,5 +117,33 @@ def calibration_report() -> dict:
     return service().calibration_report()
 
 
+@mcp.tool()
+def analyze_sample() -> dict:
+    """Composition de l'univers et ce qui explique les spreads, avec des constats rédigés."""
+    return service().analyze_sample()
+
+
+@mcp.tool()
+def analyze_models(include_forest: bool = True) -> dict:
+    """Ce que chaque modèle a appris et ses erreurs hors échantillon : courbe des pairs, écart
+    émetteur, réglage des comparables, CatBoost, correcteur, forêt aléatoire, confiance.
+    La forêt aléatoire ajoute une quinzaine de secondes."""
+    return service().analyze_models(include_forest)
+
+
+@mcp.tool()
+def analyze_comparables(run_id: str) -> dict:
+    """Lecture des comparables d'une estimation enregistrée."""
+    return service().analyze_comparables(run_id)
+
+
+@mcp.tool()
+def analyze_clusters(method: str = "kmeans", run_id: str | None = None,
+                     n_clusters: int | None = None, include_spread: bool = False) -> dict:
+    """Familles d'obligations : method = kmeans, ward, gmm ou hdbscan. Avec un run_id,
+    situe l'obligation estimée dans sa famille. Le clustering n'estime pas le spread."""
+    return service().analyze_clusters(method, run_id, n_clusters, include_spread)
+
+
 if __name__ == "__main__":
     mcp.run()

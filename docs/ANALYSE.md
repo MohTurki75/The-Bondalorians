@@ -1,0 +1,116 @@
+# Guide de lecture de l'onglet « Analyse »
+
+Ce guide s'adresse à qui n'est pas analyste de données. Il explique chaque
+graphique de l'onglet « Analyse », les mots techniques employés et les pièges
+de lecture.
+
+L'onglet ne change aucune estimation : il sert à comprendre l'échantillon et
+les modèles. Les phrases « À retenir » sont calculées à partir des données,
+jamais écrites à la main ; elles sont aussi disponibles pour l'agent par le
+serveur MCP (voir la fin du guide).
+
+Si vous avez lancé une estimation dans l'onglet « Estimation », votre
+obligation apparaît sur les graphiques sous forme de losange, avec son
+intervalle en trait vertical.
+
+## Les mots à connaître
+
+| Mot | Sens |
+|---|---|
+| Médiane | La valeur du milieu : la moitié des obligations est au-dessous, l'autre au-dessus. Moins sensible aux valeurs extrêmes que la moyenne. |
+| Centile | Le 10e centile est la valeur sous laquelle se trouvent 10 % des obligations. |
+| Échelle logarithmique | Chaque graduation multiplie au lieu d'ajouter (10, 100, 1 000). Elle permet de voir sur un même graphique un spread de 30 pb et un de 3 000 pb. |
+| Hors échantillon | Une obligation est estimée par un modèle qui ne l'a pas vue pendant son apprentissage. C'est la seule façon honnête de mesurer une erreur. |
+| Part de la dispersion expliquée | De 0 % à 100 % : à quel point connaître une information permet de deviner le spread. |
+| Couverture | La part des cas où le vrai spread tombe dans l'intervalle annoncé. Un intervalle à 90 % doit couvrir 9 cas sur 10. |
+
+## Partie 1 : Échantillon
+
+| Graphique | Ce qu'il dit | Piège |
+|---|---|---|
+| Combien d'obligations par notation | Où les comparables sont nombreux | Une catégorie rare donne des estimations moins sûres, même si le modèle affiche un chiffre |
+| Niveau des spreads par notation | La fourchette de spreads de chaque notation | Le rectangle est la moitié centrale, pas le minimum et le maximum |
+| Spread, maturité et notation | Une vue de toutes les obligations | Les points se superposent : la densité est mieux lue sur le graphique précédent |
+| Qu'est-ce qui explique les spreads ? | Le poids de chaque caractéristique prise seule | Les parts ne s'additionnent pas : notation et séniorité se recoupent |
+| Secteur, devise, séniorité | La composition de l'échantillon | — |
+
+## Partie 2 : Modèles un par un
+
+L'estimation enchaîne trois étapes : courbe des pairs, écart propre à
+l'émetteur, comparables. Les modèles d'apprentissage automatique servent de
+contrôle et de correction.
+
+| Graphique | Modèle | Ce qu'il dit |
+|---|---|---|
+| 1. Courbe des pairs | Régression | Le spread « normal » d'un profil. Les courbes sont tracées pour une obligation typique ; une autre séniorité ou un autre secteur les décalerait. |
+| 2. Écart propre à l'émetteur | Rétrécissement | De combien chaque émetteur traite au-dessus ou au-dessous de ses pairs, et quelle part de cet écart est retenue. Avec peu d'obligations, l'écart est réduit par prudence. |
+| 3. Comparables de votre obligation | Comparables | Les obligations retenues, leur ressemblance et leur poids. Le spread affiché est ramené au profil de votre obligation. |
+| 4. Comment la ressemblance est mesurée | Réglage des poids | Quels critères comptent pour juger deux obligations semblables. Les poids appris varient d'un jeu de données à l'autre. |
+| 5. CatBoost | Apprentissage automatique (arbres de décision en série) | Quelles variables il utilise, mesuré par SHAP (la contribution de chaque variable à chaque prédiction). |
+| 6. Correcteur | CatBoost sur les erreurs | De combien il corrige le modèle A. Une correction n'est utile que si elle réduit l'erreur hors échantillon. |
+| 7. Forêt aléatoire | Centaines d'arbres de décision moyennés | Modèle de comparaison, qui n'entre pas dans l'estimation. Importance mesurée en brouillant une variable. |
+| 8. Côte à côte | Courbe des pairs, CatBoost, forêt | Ce que chaque modèle a appris sur la notation et la maturité. Des courbes qui se superposent veulent dire que les modèles sont d'accord. |
+
+## Partie 3 : Comparaison et confiance
+
+| Graphique | Question | Lecture |
+|---|---|---|
+| Quel modèle se trompe le moins ? | Le choix du modèle est-il justifié ? | Barre la plus basse dans chaque palier. Les paliers n'ont pas les mêmes niveaux de spread : comparer à l'intérieur d'un palier. |
+| Le score de confiance tient-il ses promesses ? | Le score distingue-t-il les cas faciles des difficiles ? | La courbe bleue doit monter de gauche à droite. |
+| L'intervalle à 90 % … | L'intervalle est-il honnête ? | Les barres doivent être au niveau de la ligne de 90 %. |
+
+## Partie 4 : Clustering
+
+Le clustering regroupe les obligations qui se ressemblent par leurs
+caractéristiques. **Il n'estime pas le spread** : il aide à lire l'échantillon
+et à situer votre obligation.
+
+| Méthode | Principe | Quand elle est utile |
+|---|---|---|
+| k-means | k centres ; chaque obligation rejoint le plus proche | Familles compactes de tailles voisines |
+| Hiérarchique (Ward) | Fusionne pas à pas les familles les plus proches | Familles emboîtées, du général au détail |
+| Mélange gaussien | Chaque famille est une « cloche » de forme libre | Familles de formes et de tailles différentes |
+| HDBSCAN | Cherche les zones denses ; le reste est « atypique » | Repérer les obligations qui ne ressemblent à rien |
+
+| Graphique | Lecture |
+|---|---|
+| Carte des familles | Deux axes qui résument au mieux les différences. Deux points proches sur la carte peuvent être éloignés en réalité : la carte ne montre qu'une partie de l'information (le pourcentage est indiqué). |
+| Niveau de spread de chaque famille | Des rectangles bien étagés : les familles correspondent à des niveaux de risque. |
+| Les familles expliquent-elles les spreads ? | Si « familles et notation » dépasse nettement « notation seule », les familles apportent une information nouvelle. |
+| Combien de familles ? | La silhouette mesure la séparation : au-dessus de 0,5, familles nettes ; sous 0,25, familles qui se chevauchent. |
+| Les méthodes trouvent-elles les mêmes familles ? | 1 : familles identiques ; 0 : accord dû au hasard. |
+
+Option « Avec le spread » : les familles sont formées aussi sur le spread. On
+obtient des familles de risque, mais la mesure « les familles expliquent les
+spreads » devient circulaire, donc flatteuse.
+
+## Ce que montrent les données synthétiques
+
+Ces constats valent pour les données d'essai, pas pour les données réelles.
+Ils montrent ce que les graphiques permettent de voir.
+
+- La notation explique à elle seule environ 80 % des écarts de spread.
+- La forêt aléatoire et CatBoost ne battent pas le modèle par comparables. Ils
+  n'utilisent pas la courbe de l'émetteur.
+- Les familles se chevauchent (silhouette d'environ 0,2) et expliquent moins
+  les spreads que la notation seule. L'échantillon est un continuum plutôt
+  qu'un ensemble de groupes.
+- Les quatre méthodes de clustering ne trouvent pas les mêmes familles. HDBSCAN
+  forme surtout des familles par secteur et devise, et classe environ un tiers
+  des obligations comme atypiques.
+
+## Pour l'agent
+
+Le serveur MCP expose les mêmes analyses, sans les données détaillées des
+graphiques :
+
+| Outil | Contenu |
+|---|---|
+| `analyze_sample` | Composition et ce qui explique les spreads |
+| `analyze_models` | Chaque modèle, comparaison, confiance ; `include_forest=false` pour aller plus vite |
+| `analyze_comparables` | Les comparables d'une estimation (`run_id`) |
+| `analyze_clusters` | Familles selon `method` (`kmeans`, `ward`, `gmm`, `hdbscan`), avec placement de l'obligation si `run_id` est donné |
+
+Chaque réponse contient une liste `findings` : des phrases en français dont
+tous les chiffres sont calculés. L'agent peut les reformuler, mais ne doit pas
+y ajouter de chiffre.
