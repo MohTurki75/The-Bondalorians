@@ -145,5 +145,12 @@ def analyze_clusters(method: str = "kmeans", run_id: str | None = None,
     return service().analyze_clusters(method, run_id, n_clusters, include_spread)
 
 
+@mcp.tool()
+def analysis_report(run_id: str | None = None, include_forest: bool = True) -> str:
+    """Rapport Markdown complet des analyses (consigne d'interprétation, glossaire, constats,
+    tableaux), avec l'obligation d'une estimation si run_id est donné. Prend environ 30 secondes."""
+    return service().analysis_report(run_id, include_forest)
+
+
 if __name__ == "__main__":
     mcp.run()

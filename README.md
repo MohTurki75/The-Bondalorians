@@ -48,6 +48,7 @@ la courbe émetteur, poids de distance des comparables, champion, confiance.
     python scripts/make_synthetic.py        # univers synthétique dans data/
     python scripts/backtest.py --ml         # erreur et couverture hors échantillon
     python scripts/ablation.py --ml         # effet de chaque amélioration
+    python scripts/export_analyses.py       # rapport Markdown des analyses, pour un LLM
     pytest
 
 Interface de démonstration :
@@ -96,7 +97,7 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 `find_comparables`, `estimate_zspread`, `validate_estimate`,
 `explain_estimate`, `submit_feedback`, `get_run`, `backtest_summary`,
 `calibration_report`, `analyze_sample`, `analyze_models`, `analyze_comparables`,
-`analyze_clusters`.
+`analyze_clusters`, `analysis_report`.
 
 ## État
 

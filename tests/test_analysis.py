@@ -113,3 +113,43 @@ def test_target_without_size_uses_median_size(estimator, new_bond):
     assert target["log_amt"] == pytest.approx(float(np.median(estimator.a_["log_amt"])))
     sized, _, _ = estimator.resolve({**new_bond, "amount_outstanding": 1e9})
     assert sized["log_amt"] == pytest.approx(np.log(1e9))
+
+
+def test_structure_verdict():
+    from bondalorians.analysis.clustering import structure_verdict
+
+    decreasing = pd.DataFrame({"k": range(2, 11), "silhouette": np.linspace(0.35, 0.12, 9)})
+    verdict = structure_verdict(decreasing, reading_k=4)
+    assert not verdict["clear"] and verdict["best_k"] == 2 and verdict["chosen_k"] == 4
+    assert "continuum" in verdict["reason"]
+    peaked = pd.DataFrame({"k": range(2, 11), "silhouette": [0.2, 0.3, 0.45, 0.32, 0.25, 0.2, 0.18, 0.15, 0.1]})
+    verdict = structure_verdict(peaked, reading_k=4)
+    assert verdict["clear"] and verdict["chosen_k"] == 4 and verdict["best_k"] == 4
+    peaked["silhouette"] = [0.2, 0.3, 0.38, 0.32, 0.25, 0.2, 0.18, 0.15, 0.1]
+    peaked.loc[peaked["k"] == 6, "silhouette"] = 0.39
+    assert structure_verdict(peaked)["chosen_k"] == 6
+    sharp = pd.DataFrame({"k": range(2, 11), "silhouette": np.linspace(0.7, 0.3, 9)})
+    assert structure_verdict(sharp)["clear"] and structure_verdict(sharp)["chosen_k"] == 2
+
+
+def test_clustering_uses_reading_k_without_structure(estimator):
+    analysis = cluster_universe(estimator, "kmeans", reading_k=5)
+    verdict = analysis["tables"]["structure"]
+    assert list(analysis["tables"]["silhouette"]["k"]) == list(range(2, 11))
+    expected = verdict["best_k"] if verdict["clear"] else 5
+    assert analysis["k"] == expected
+    assert verdict["reason"] in analysis["findings"]
+
+
+def test_report_for_llm(estimator, universe):
+    from bondalorians.analysis.report import build_report
+
+    result = estimator.estimate(universe["isin"].iloc[0])
+    report = build_report(estimator, result, "données synthétiques", include_forest=False, methods=("kmeans", "ward"))
+    for heading in ("## Consigne", "## Glossaire", "## 1. Échantillon", "## 2. Les modèles un par un",
+                    "## 3. Comparaison des modèles et confiance", "## 4. Clustering", "## 5. Obligation estimée"):
+        assert heading in report
+    assert "Spread observé dans la base" in report and "nan" not in report.lower().replace("nant", "")
+    assert all(line.count("|") >= 2 for line in report.splitlines() if line.startswith("|"))
+    without_bond = build_report(estimator, None, include_forest=False, methods=("kmeans",))
+    assert "## 5. Obligation estimée" not in without_bond

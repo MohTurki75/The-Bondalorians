@@ -138,6 +138,7 @@ L'interface s'ouvre sur http://localhost:8551 (port fixé dans
 | « Déjà démarré » | Une interface tourne déjà | `scripts/stop.sh` puis `scripts/start.sh` |
 | « Le port 8551 est déjà utilisé » | Une autre application Streamlit tourne sur ce port | Mettre `BONDALORIANS_PORT=8552` dans `.env`, ou arrêter l'autre application |
 | La page affiche une autre application | Même cause : le navigateur ouvre l'application qui occupe le port | Vérifier l'adresse affichée par `scripts/start.sh` |
+| « Dépendances manquantes » au démarrage, ou `No module named 'sklearn'` | Paquets installés dans un autre Python que celui qui lance l'interface | Activer l'environnement virtuel (`source .venv/bin/activate`), puis `python -m pip install -e ".[ml,pg,mcp,ui,dev]"` |
 | « Échec du démarrage » | Port occupé ou dépendance manquante | Lire `runs/ui.log` ; changer `BONDALORIANS_PORT` |
 | « Aucune source de données » | Ni base, ni CSV, ni données synthétiques | `python scripts/make_synthetic.py` ou renseigner `.env` |
 | « Colonnes canoniques manquantes » | `schema_map.yaml` ne correspond pas au schéma | Corriger la section `columns` |

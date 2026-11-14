@@ -7,6 +7,9 @@ le graphique, puis ce qu'il faut en retenir (constats calculés par
 
 from __future__ import annotations
 
+import importlib.util
+import sys
+
 import altair as alt
 import numpy as np
 import pandas as pd
@@ -90,6 +93,14 @@ def _models(_estimator, version: str) -> dict:
 @st.cache_data(show_spinner="Clustering de l'univers…")
 def _clusters(_estimator, version: str, method: str, k, include_spread: bool, _target, target_key) -> dict:
     return cluster_universe(_estimator, method, k=k, include_spread=include_spread, target=_target)
+
+
+@st.cache_data(show_spinner=False)
+def _report(_estimator, version: str, _result, result_key) -> str:
+    from bondalorians.analysis.report import build_report
+
+    synthetic = _estimator.df_["isin"].astype(str).str.match(r"XS\d{10}$").all()
+    return build_report(_estimator, _result, "données synthétiques" if synthetic else "base de l'utilisateur")
 
 
 # --------------------------------------------------------------- sections
@@ -421,15 +432,19 @@ def _clustering_section(estimator, version: str, result: dict | None, mode: str)
     c1, c2, c3 = st.columns([2, 2, 1])
     method = c1.selectbox("Méthode", list(METHODS), format_func=METHODS.get)
     c1.caption(METHOD_HELP[method])
-    automatic = c2.toggle("Nombre de familles automatique", value=True,
-                          help="Choisi par la silhouette, qui mesure si les familles sont bien séparées.",
+    automatic = c2.toggle("Nombre de familles proposé", value=True,
+                          help="Le nombre qui sépare le mieux les familles s'il existe une vraie structure en groupes ; "
+                               "sinon un nombre de lecture fixé dans config/settings.yaml.",
                           disabled=method == "hdbscan")
-    k = None if automatic or method == "hdbscan" else c2.slider("Nombre de familles", 3, 8, 5)
+    k = None if automatic or method == "hdbscan" else c2.slider("Nombre de familles", 2, 10, 4)
     include_spread = c3.toggle("Avec le spread", value=False,
                                help="Forme les familles aussi sur le spread : des familles de risque, mais "
                                     "le lien familles-spread devient circulaire.")
     analysis = _clusters(estimator, version, method, k, include_spread, result,
                          None if result is None else result["run_id"])
+    verdict = analysis["tables"]["structure"]
+    if method != "hdbscan":
+        (st.success if verdict["clear"] else st.warning)(verdict["reason"])
     points, tables = analysis["points"].copy(), analysis["tables"]
 
     sizes = points[points["famille"] != ATYPICAL]["famille"].value_counts()
@@ -501,14 +516,24 @@ def _clustering_section(estimator, version: str, result: dict | None, mode: str)
                    "information que la notation n'a pas.")
     with c2:
         if method != "hdbscan":
-            sil = tables["silhouette"]
-            chart = alt.Chart(sil).mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=60), color=SERIES[mode][0]).encode(
+            sil = tables["silhouette"].assign(affiche=lambda d: np.where(d["k"] == analysis["k"], "Affiché", "Testé"))
+            line = alt.Chart(sil).mark_line(strokeWidth=2, color=SERIES[mode][0]).encode(
                 x=alt.X("k:O", axis=_axis("Nombre de familles", labelAngle=0)),
-                y=alt.Y("silhouette:Q", axis=_axis("Silhouette (séparation)")),
-                tooltip=[alt.Tooltip("k:O", title="Familles"), alt.Tooltip("silhouette:Q", title="Silhouette", format=".2f")])
+                y=alt.Y("silhouette:Q", scale=alt.Scale(domain=[0, max(0.6, float(sil["silhouette"].max()))]),
+                        axis=_axis("Silhouette (séparation)")))
+            dots = alt.Chart(sil).mark_point(filled=True).encode(
+                x="k:O", y="silhouette:Q",
+                size=alt.condition(alt.datum.affiche == "Affiché", alt.value(160), alt.value(50)),
+                color=alt.condition(alt.datum.affiche == "Affiché", alt.value(INK[mode]), alt.value(SERIES[mode][0])),
+                tooltip=[alt.Tooltip("k:O", title="Familles"), alt.Tooltip("silhouette:Q", title="Silhouette", format=".2f"),
+                         alt.Tooltip("affiche:N", title="")])
+            guide = alt.Chart(pd.DataFrame([{"y": 0.25}])).mark_rule(color=MUTED, strokeDash=[4, 4]).encode(y="y:Q")
+            chart = guide + line + dots
             st.markdown("**Combien de familles ? (k-means)**")
             st.altair_chart(chart.properties(height=200), width="stretch")
-            st.caption("Silhouette : de −1 à 1. Au-dessus de 0,5, familles nettes ; sous 0,25, familles qui se chevauchent.")
+            st.caption("Silhouette : de −1 à 1. Au-dessus de 0,5, familles nettes ; sous la ligne pointillée (0,25), "
+                       "familles qui se chevauchent. Le point noir est le nombre affiché. Une courbe qui ne fait que "
+                       "descendre veut dire qu'il n'y a pas de nombre naturel de familles.")
 
     agreement = tables["accord"].melt(id_vars="methode", var_name="autre", value_name="accord")
     order = list(METHODS.values())
@@ -541,9 +566,30 @@ def render(service, result: dict | None) -> None:
                    f"{result['z_spread_bp']:.0f} pb.")
     else:
         st.caption("Lancez une estimation dans l'onglet « Estimation » pour placer votre obligation sur les graphiques.")
+    with st.expander("Rapport pour un LLM"):
+        st.caption("Un fichier Markdown avec une consigne d'interprétation, un glossaire et tous les constats et "
+                   "tableaux de cet onglet, votre dernière estimation comprise. À donner à un LLM pour qu'il "
+                   "explique les résultats.")
+        if st.button("Préparer le rapport (environ 30 secondes)"):
+            with st.spinner("Calcul de toutes les analyses…"):
+                st.session_state["llm_report"] = _report(estimator, version, result,
+                                                         None if result is None else result["run_id"])
+        if "llm_report" in st.session_state:
+            st.download_button("Télécharger le rapport (.md)", st.session_state["llm_report"],
+                               file_name="analyses_bondalorians.md", mime="text/markdown")
     section = st.segmented_control(
         "Partie", ["Échantillon", "Modèles un par un", "Comparaison et confiance", "Clustering"],
         default="Échantillon", required=True, key="analysis_section", label_visibility="collapsed")
+    if section != "Échantillon" and importlib.util.find_spec("sklearn") is None:
+        # scikit-learn manque dans le Python qui fait tourner l'interface : on donne la
+        # commande exacte pour ce Python-là, pas un « pip » qui pourrait en viser un autre.
+        st.error(
+            "Cette partie a besoin de scikit-learn, qui n'est pas installé dans le Python qui fait tourner "
+            "l'interface. Arrêtez l'interface, lancez la commande ci-dessous dans un terminal, puis redémarrez :"
+        )
+        st.code(f'"{sys.executable}" -m pip install "scikit-learn>=1.5"', language="bash")
+        st.caption("La partie « Échantillon » fonctionne sans scikit-learn.")
+        return
     if section == "Échantillon":
         _sample_section(estimator, version, result, mode)
     elif section == "Modèles un par un":

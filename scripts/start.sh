@@ -20,6 +20,24 @@ if curl -s -o /dev/null "http://localhost:$PORT" 2>/dev/null; then
   exit 1
 fi
 
+# Les dépendances sont-elles installées dans le Python utilisé ici ?
+MANQUANTS="$(python - <<'PY'
+import importlib.util
+needed = {"streamlit": "streamlit", "sklearn": "scikit-learn", "bondalorians": "le projet (pip install -e .)"}
+print(" ".join(name for module, name in needed.items() if importlib.util.find_spec(module) is None))
+PY
+)"
+if [ -n "$MANQUANTS" ]; then
+  echo "Dépendances manquantes dans $(command -v python) : $MANQUANTS" >&2
+  echo "Installez-les dans ce même Python, depuis la racine du projet :" >&2
+  echo "  python -m pip install -e \".[ml,pg,mcp,ui,dev]\"" >&2
+  echo "(Si vous utilisez un environnement virtuel, activez-le d'abord : source .venv/bin/activate)" >&2
+  exit 1
+fi
+if ! python -c "import catboost" 2>/dev/null; then
+  echo "Note : CatBoost n'est pas installé ; les modèles B et C seront désactivés." >&2
+fi
+
 # Sans base ni fichier configuré, on travaille sur des données d'essai.
 if [ -z "${BONDALORIANS_DSN:-}" ] && [ -z "${BONDALORIANS_CSV:-}" ] && [ ! -f data/synthetic_bonds.csv ]; then
   echo "Aucune source configurée : génération de données synthétiques."

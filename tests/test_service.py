@@ -69,7 +69,7 @@ def test_mcp_server_exposes_business_tools(service, new_bond, monkeypatch):
         "describe_universe", "get_bond", "search_bonds", "classify_complexity", "find_comparables",
         "estimate_zspread", "validate_estimate", "explain_estimate", "submit_feedback", "get_run",
         "backtest_summary", "calibration_report", "analyze_sample", "analyze_models",
-        "analyze_comparables", "analyze_clusters",
+        "analyze_comparables", "analyze_clusters", "analysis_report",
     }
     result = server.estimate_zspread(characteristics=new_bond)
     assert server.validate_estimate(result["run_id"])["run_id"] == result["run_id"]
