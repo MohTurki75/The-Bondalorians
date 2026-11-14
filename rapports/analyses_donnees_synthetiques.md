@@ -1,6 +1,6 @@
 # Analyses de l'échantillon et des modèles
 
-- Généré le : 2026-11-14 15:43 UTC
+- Généré le : 2026-11-14 17:31 UTC
 - Source : données synthétiques
 - Obligations : 4 000 ; version du modèle : `0.1.0-4000-a4c3cfe522`
 - CatBoost : actif ; forêt aléatoire : incluse
@@ -107,11 +107,11 @@ Réponds, dans cet ordre :
 
 | Critère | Poids |
 |---|---|
-| notch | 0,1 |
-| maturity | 0,4 |
-| sector | 0,3 |
-| country | 0,1 |
-| size | 0,2 |
+| notch | 0,097 |
+| maturity | 0,364 |
+| sector | 0,279 |
+| country | 0,102 |
+| size | 0,158 |
 
 Nombre maximal de comparables : 60 ; largeur du noyau : 0,42.
 

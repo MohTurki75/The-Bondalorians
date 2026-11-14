@@ -154,7 +154,7 @@ def build_report(estimator, result: dict | None = None, source: str = "",
             out += [md_table(frame, columns), ""]
         if key == "reglage":
             params = estimator.params_
-            out += [md_table(pd.DataFrame([{"Critère": k, "Poids": v} for k, v in params["weights"].items()])),
+            out += [md_table(pd.DataFrame([{"Critère": k, "Poids": v} for k, v in params["weights"].items()]), digits=3),
                     "", f"Nombre maximal de comparables : {params['top_k']} ; largeur du noyau : "
                         f"{fmt(params['bandwidth'], 2)}.", ""]
 

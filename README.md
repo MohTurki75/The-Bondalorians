@@ -41,6 +41,7 @@ la courbe émetteur, poids de distance des comparables, champion, confiance.
 - Déroulé pas à pas : [docs/FONCTIONNEMENT.md](docs/FONCTIONNEMENT.md)
 - Lire l'onglet « Analyse » (graphiques, clustering, glossaire) : [docs/ANALYSE.md](docs/ANALYSE.md)
 - Décisions et limites : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Synthèse du problème et des modèles, à donner à un assistant : [docs/PROBLEME_ESTIMATION.md](docs/PROBLEME_ESTIMATION.md)
 
 ## Démarrage
 
