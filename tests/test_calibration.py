@@ -82,3 +82,47 @@ def test_refit_keeps_learned_parameters(universe, settings):
     estimator.refit(universe.head(1200))
     assert estimator.params_["top_k"] == 25 and estimator.calibration_ is calibration
     assert len(estimator.df_) == 1200
+
+
+def test_slope_shrinkage_recovers_dispersion_of_issuer_slopes():
+    from bondalorians.quant.shrinkage import estimate_slope_shrinkage
+
+    rng = np.random.default_rng(1)
+    n_issuers, per = 300, 8
+    issuers = np.repeat(np.arange(n_issuers), per)
+    log_t = rng.uniform(0, 3, n_issuers * per)
+    slopes = np.repeat(rng.normal(0, 0.10, n_issuers), per)
+    residuals = slopes * (log_t - 1.5) + rng.normal(0, 0.08, len(log_t))
+    result = estimate_slope_shrinkage(residuals, issuers, log_t, noise_var=0.08**2)
+    assert result["slope_sd"] == pytest.approx(0.10, rel=0.2)
+    flat = estimate_slope_shrinkage(rng.normal(0, 0.08, len(log_t)), issuers, log_t, noise_var=0.08**2)
+    assert flat["k_b"] == float("inf") or flat["k_b"] > 20  # pas de pente : neutralisée
+
+
+def test_realistic_profile_and_enriched_curve(settings):
+    universe = make_universe(n_bonds=1500, n_issuers=220, seed=3, profile="realiste")
+    assert universe["z_spread"].gt(0).all()
+    with pytest.raises(ValueError):
+        make_universe(profile="inconnu")
+    settings["peer_curve"]["enriched"] = True
+    settings["comparables"]["issuer_slope"] = True
+    estimator = ZSpreadEstimator(settings, use_ml=False).fit(universe)
+    result = estimator.estimate(universe["isin"].iloc[0])
+    steps = [s["step"] for s in result["waterfall"]]
+    assert "Pays" in steps and "Taille de la souche" in steps
+    assert result["waterfall"][-1]["cumulative_bp"] == pytest.approx(result["z_spread_bp"], abs=0.2)
+    assert {"slope_weight", "slope_effect_log"} <= set(result["issuer_offset"])
+    assert estimator.calibration_report()["issuer_slope"]["estimated"]
+
+
+def test_dispersion_features_switch(estimator, universe):
+    from bondalorians.quant.confidence import error_features
+
+    row = estimator.df_.iloc[0].to_dict()
+    core = estimator._core(row, exclude_isin=row["isin"])
+    assert core["peer_disp"] >= 0
+    off = error_features(row, core, None, None, None)
+    on = error_features(row, core, None, None, {"noise_sd": 0.1})
+    assert off["peer_disp"] == off["issuer_disp"] == 0.0
+    assert on["peer_disp"] == pytest.approx(core["peer_disp"])
+    assert on["issuer_disp_known"] in (0.0, 1.0)

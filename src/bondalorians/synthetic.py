@@ -26,11 +26,33 @@ SENIORITY_ADD = {  # (écart en log, crans de notation en plus)
 }
 
 
+PROFILES = ("simple", "realiste")
+# Profil « réaliste » : effets que la courbe des pairs d'origine ne sait pas reproduire.
+SECTOR_RATING_SLOPE = {  # supplément de pente de notation par secteur (en log, par cran au-delà de BBB)
+    "Immobilier": 0.04, "Énergie": 0.03, "Banques": 0.02, "Assurance": 0.01,
+    "Services publics": -0.02, "Santé": -0.01,
+}
+COUNTRY_ADD = {"IT": 0.08, "ES": 0.04, "GB": 0.02}
+
+
 def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42,
-                  noise_by_rating: float = 0.0) -> pd.DataFrame:
-    """`noise_by_rating` > 0 rend le bruit croissant avec la dégradation de la
-    notation (écart-type ajouté par cran au-delà de AA). Sert à vérifier que le
-    modèle de difficulté détecte des cas inégalement prévisibles."""
+                  noise_by_rating: float = 0.0, profile: str = "simple") -> pd.DataFrame:
+    """Univers synthétique.
+
+    - `profile="simple"` : modèle log-linéaire très proche de la courbe des pairs ;
+      il favorise le modèle A par construction.
+    - `profile="realiste"` : ajoute ce qu'un marché réel montre et que le modèle
+      d'origine ne capture pas : courbes qui s'aplatissent en haut rendement,
+      sensibilité à la notation propre au secteur, prime de subordination plus
+      forte pour les émetteurs faibles, pente de maturité propre à chaque émetteur,
+      effet pays, prime d'illiquidité des petites souches, bruit plus fort pour
+      les notations faibles et la dette subordonnée, et 4 % de notations « en
+      retard » sur le marché.
+    - `noise_by_rating` > 0 (profil simple) : bruit croissant avec la notation.
+    """
+    if profile not in PROFILES:
+        raise ValueError(f"Profil inconnu : {profile} (attendu : {PROFILES}).")
+    realistic = profile == "realiste"
     rng = np.random.default_rng(seed)
     sectors = list(SECTORS)
     issuers = pd.DataFrame({
@@ -39,6 +61,7 @@ def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42,
         "country": rng.choice(COUNTRIES, n_issuers),
         "notch": np.clip(np.round(rng.normal(8.5, 3.0, n_issuers)), 1, 17).astype(int),
         "alpha": rng.normal(0.0, 0.15, n_issuers),
+        "beta": rng.normal(0.0, 0.08, n_issuers),  # pente de maturité propre (profil réaliste)
     })
     # Quelques gros émetteurs concentrent beaucoup d'obligations, d'autres une seule.
     popularity = np.minimum(rng.pareto(1.5, n_issuers) + 0.2, 6.0)
@@ -62,21 +85,41 @@ def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42,
         maturity = float(np.clip(rng.gamma(2.2, 3.0), 0.5, 30.0))
         currency = rng.choice(["EUR", "USD", "GBP"], p=[0.75, 0.20, 0.05])
         callable_ = bool(seniority in ("AT1", "HYBRID", "TIER2") or rng.random() < 0.10)
-        log_spread = (
-            2.55 + 0.21 * notch + 0.0035 * notch**2
-            + (0.42 - 0.012 * notch) * np.log(maturity)
-            + add_log + SECTORS[issuer["sector"]]
-            + {"EUR": 0.0, "USD": 0.06, "GBP": 0.10}[currency]
-            + 0.05 * callable_
-            + issuer["alpha"] + rng.normal(0.0, 0.08 + noise_by_rating * max(notch - 3, 0))
-        )
+        log_amt = rng.normal(20.0, 0.6)
+        log_t = np.log(maturity)
+        if not realistic:
+            log_spread = (
+                2.55 + 0.21 * notch + 0.0035 * notch**2
+                + (0.42 - 0.012 * notch) * log_t
+                + add_log + SECTORS[issuer["sector"]]
+                + {"EUR": 0.0, "USD": 0.06, "GBP": 0.10}[currency]
+                + 0.05 * callable_
+                + issuer["alpha"] + rng.normal(0.0, 0.08 + noise_by_rating * max(notch - 3, 0))
+            )
+        else:
+            subordinated = seniority in ("TIER2", "AT1", "SUBORDINATED", "HYBRID")
+            # Courbe qui s'aplatit (et se bombe) quand la notation se dégrade.
+            term = (0.42 - 0.03 * max(notch - 10, 0)) * log_t - 0.05 * log_t**2
+            # La prime de subordination grossit quand l'émetteur est faible.
+            seniority_add = add_log * max(0.3, 1 + 0.08 * (issuer["notch"] - 9))
+            noise_sd = 0.05 + 0.012 * max(notch - 6, 0) + 0.08 * subordinated + 0.03 * callable_
+            stale = rng.random()
+            log_spread = (
+                2.55 + 0.21 * notch + 0.0035 * notch**2 + term + seniority_add
+                + SECTORS[issuer["sector"]] + SECTOR_RATING_SLOPE.get(issuer["sector"], 0.0) * (notch - 9)
+                + {"EUR": 0.0, "USD": 0.06, "GBP": 0.10}[currency] + COUNTRY_ADD.get(issuer["country"], 0.0)
+                + 0.05 * callable_ - 0.06 * (log_amt - 20.0)
+                + issuer["alpha"] + issuer["beta"] * (log_t - np.log(5.0))
+                + (0.35 if stale < 0.03 else -0.25 if stale < 0.04 else 0.0)
+                + rng.normal(0.0, noise_sd)
+            )
         rows.append({
             "isin": f"XS{i:010d}",
             "issuer": issuer["issuer"], "sector": issuer["sector"], "country": issuer["country"],
             "currency": currency, "rating": RATING_SCALE[notch - 1], "seniority": seniority,
             "coupon_type": rng.choice(["FIXED", "FLOATING"], p=[0.9, 0.1]),
             "callable": callable_, "maturity_years": round(maturity, 2),
-            "amount_outstanding": float(np.round(np.exp(rng.normal(20.0, 0.6)), -5)),
+            "amount_outstanding": float(np.round(np.exp(log_amt), -5)),
             "z_spread": round(float(np.exp(log_spread)), 1),
         })
     return pd.DataFrame(rows)

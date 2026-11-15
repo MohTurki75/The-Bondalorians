@@ -105,7 +105,7 @@ spreads » devient circulaire, donc flatteuse.
 
 ## Ce que montrent les données synthétiques
 
-Ces constats valent pour les données d'essai, pas pour les données réelles.
+Ces constats valent pour les données d'essai (profil réaliste), pas pour les données réelles.
 Ils montrent ce que les graphiques permettent de voir.
 
 - La notation explique à elle seule environ 80 % des écarts de spread.
@@ -113,7 +113,7 @@ Ils montrent ce que les graphiques permettent de voir.
   n'utilisent pas la courbe de l'émetteur.
 - Il n'y a pas de structure en groupes : la silhouette baisse à chaque famille
   ajoutée. Les 4 familles de lecture expliquent moins les spreads que la
-  notation seule (57 % contre 79 %), mais les deux ensemble en expliquent 89 %.
+  notation seule (55 % contre 79 %), mais les deux ensemble en expliquent 88 %.
 - Les quatre méthodes de clustering ne trouvent pas les mêmes familles. HDBSCAN
   forme surtout des familles par secteur et devise, et classe environ un tiers
   des obligations comme atypiques.

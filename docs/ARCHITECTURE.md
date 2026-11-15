@@ -44,7 +44,13 @@ En log du spread :
 
     modèle A = courbe des pairs
              + lambda * écart moyen de l'émetteur à la courbe
+             + lambda_b * pente de l'émetteur * (maturité cible − maturité moyenne de l'émetteur)
              + (1 - lambda) * écart pondéré des comparables hors émetteur
+
+- La courbe des pairs enrichie ajoute courbure de maturité, sensibilité à la
+  notation par secteur, prime de séniorité selon la notation, pays et taille.
+- `lambda_b = Sxx / (Sxx + k_b)`, `k_b` estimé par les moments ; extrapolation
+  limitée à 0,3 en log au-delà des maturités de l'émetteur.
 
 - `lambda = n / (n + k)` : un émetteur avec une seule obligation pèse peu.
   `k` est estimé par analyse de variance des résidus (variance du bruit
@@ -74,7 +80,8 @@ Deux modèles CatBoost complètent le modèle A :
 | Paramètres des comparables | 200 essais sur 10 % des obligations | Adoption seulement si gain sur 10 % d'autres obligations ; poids minimal de 5 % par critère ; obligations de réglage exclues des intervalles |
 | Modèle C | CatBoost sur l'erreur de A | Entraîné sur des estimations faites sans l'obligation elle-même ; peu profond |
 | Champion | Erreur médiane du backtest | Marge de 5 % en faveur du modèle A |
-| Difficulté d'un cas | Modèle sur 12 indicateurs | Prédite hors échantillon avant de calibrer l'intervalle |
+| `k_b` (pente émetteur) | Méthode des moments | Neutralisé s'il n'y a pas de pente au-delà du bruit |
+| Difficulté d'un cas | Modèle sur 15 indicateurs, dont deux de dispersion | Prédite hors échantillon avant de calibrer l'intervalle |
 
 `calibration_report` (outil MCP et méthode du service) renvoie les valeurs
 apprises et le gain mesuré.
@@ -145,9 +152,10 @@ changent qu'au prochain ajustement complet ; aucune promotion n'est automatique.
 
 ## Limites connues
 
-- **Données synthétiques** : elles sont générées par un modèle log-linéaire,
-  ce qui favorise le modèle A par construction. Le classement des modèles
-  sera à refaire sur les données réelles.
+- **Données synthétiques** : le profil réaliste contient des effets que le
+  modèle d'origine ignorait, mais ils ont été écrits par nous ; le modèle
+  enrichi a été conçu pour les capturer. Le classement des modèles et le gain
+  des améliorations sont à refaire sur les données réelles.
 - **Pas de dimension temporelle** : le code suppose une photographie à une
   date. S'il y a un historique, il faut choisir la date et éviter toute fuite.
 - **Z-Spreads supposés présents en base** : s'il n'y a que des prix, il faut
@@ -158,8 +166,9 @@ changent qu'au prochain ajustement complet ; aucune promotion n'est automatique.
   battent le modèle A. Le classement est à refaire sur données réelles.
 - **Poids de comparables instables** : les poids réglés varient fortement
   d'un jeu de données à l'autre ; ils ne s'interprètent pas un par un.
-- **Un seul `k` pour tout l'univers** : il ne distingue pas les segments où
-  les obligations d'un émetteur sont plus ou moins dispersées.
+- **Un seul `k` et un seul `k_b` pour tout l'univers** : ils ne distinguent
+  pas les segments où les obligations d'un émetteur sont plus ou moins
+  dispersées.
 - **Démarrage plus long** : environ 50 secondes avec CatBoost pour
   4 000 obligations.
 - **Prime de nouvelle émission** : non modélisée.

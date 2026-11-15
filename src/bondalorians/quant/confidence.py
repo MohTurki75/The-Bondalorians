@@ -17,12 +17,31 @@ import numpy as np
 ERROR_FEATURES = [
     "n_eff", "mean_distance", "lam", "log_n_issuer", "filter_level", "notch", "log_t",
     "sen_rank", "log_segment", "gap_ab", "corr_abs", "unseen",
+    "peer_disp", "issuer_disp", "issuer_disp_known",
 ]
 _EPS = 1e-3
 
 
-def error_features(t: dict, core: dict, log_b: float | None, log_c: float | None) -> dict:
-    return {
+def error_features(t: dict, core: dict, log_b: float | None, log_c: float | None,
+                   dispersion: dict | None = None) -> dict:
+    """Indicateurs de difficulté d'un cas.
+
+    `dispersion` (si fourni) active les indicateurs de dispersion : désaccord des
+    comparables entre eux et dispersion des obligations de l'émetteur autour de sa
+    courbe. Sinon ils valent zéro et n'apportent aucune information.
+    """
+    if dispersion is None:
+        extra = {"peer_disp": 0.0, "issuer_disp": 0.0, "issuer_disp_known": 0.0}
+    else:
+        issuer_disp = core.get("issuer_disp", float("nan"))
+        known = issuer_disp == issuer_disp  # faux pour NaN
+        peer_disp = core.get("peer_disp", float("nan"))
+        extra = {
+            "peer_disp": peer_disp if peer_disp == peer_disp else dispersion["noise_sd"],
+            "issuer_disp": issuer_disp if known else dispersion["noise_sd"],
+            "issuer_disp_known": 1.0 if known else 0.0,
+        }
+    return {**extra, **{
         "n_eff": core["n_eff"], "mean_distance": core["mean_distance"], "lam": core["lam"],
         "log_n_issuer": float(np.log1p(core["n_issuer"])), "filter_level": float(core["filter_level"]),
         "notch": t["notch"], "log_t": t["log_t"], "sen_rank": t["sen_rank"],
@@ -30,7 +49,7 @@ def error_features(t: dict, core: dict, log_b: float | None, log_c: float | None
         "gap_ab": 0.0 if log_b is None else abs(core["log_a"] - log_b),
         "corr_abs": 0.0 if log_c is None else abs(log_c - core["log_a"]),
         "unseen": 0.0 if core["issuer_seen"] else 1.0,
-    }
+    }}
 
 
 class ErrorModel:
