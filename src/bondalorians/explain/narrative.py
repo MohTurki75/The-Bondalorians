@@ -10,6 +10,7 @@ MODEL_NAMES = {
     "A": "comparables ajustés par la courbe des pairs",
     "B": "CatBoost indépendant",
     "C": "comparables corrigés par CatBoost",
+    "P": "courbe des pairs seule",
 }
 
 STANDING_CAVEATS = [
@@ -57,6 +58,12 @@ def build_narrative(result: dict) -> str:
         "Principaux écarts à l'obligation moyenne : "
         + " ; ".join(f"{s['step']} {s['delta_bp']:+.0f} pb" for s in drivers) + "."
     )
+    reading = result.get("top_down")
+    if reading:
+        lines.append(
+            f"Lecture descendante (contrôle) : {reading['z_spread_bp']:.0f} pb, niveau « {reading['level_name']} », "
+            f"{reading['method']} ; écart de {reading['gap_pct']:+.0f} % avec l'estimation."
+        )
     alerts = [c for c in result["controls"] if c["status"] != "ok"]
     if alerts:
         lines.append("Contrôles en alerte : " + " ; ".join(f"{c['control']} ({c['detail']})" for c in alerts))

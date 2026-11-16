@@ -19,9 +19,10 @@ from bondalorians.analysis.sample import describe_sample
 
 MODEL_LABELS = {
     "courbe_pairs_bp": "courbe des pairs", "A_comparables_bp": "A", "B_catboost_bp": "B (CatBoost)",
-    "C_comparables_corriges_bp": "C (comparables corrigés)",
+    "C_comparables_corriges_bp": "C (comparables corrigés)", "top_down_bp": "lecture descendante",
 }
-CHAMPION_LABELS = {"A": "A (comparables)", "B": "B (CatBoost)", "C": "C (comparables corrigés)"}
+CHAMPION_LABELS = {"A": "A (comparables)", "B": "B (CatBoost)", "C": "C (comparables corrigés)",
+                   "P": "courbe des pairs seule"}
 
 INSTRUCTIONS = """Tu es analyste crédit et data scientist. Tu expliques ces résultats à un gérant de portefeuille
 qui n'est pas spécialiste des données. Le système estime le Z-Spread juste d'une obligation à partir d'un
@@ -242,6 +243,16 @@ def build_report(estimator, result: dict | None = None, source: str = "",
             f"- Palier : {TIER_LABELS[result['tier']]}. {result['tier_reason']}",
             f"- Modèle retenu : {CHAMPION_LABELS[result['champion']]}. Estimations des modèles (pb) : "
             + ", ".join(f"{MODEL_LABELS[k]} {fmt(v)}" for k, v in result["models"].items() if v is not None) + ".",
+            "",
+            "### Lecture descendante (contrôle)",
+            "",
+            f"- {fmt(result['top_down']['z_spread_bp'])} pb ; niveau : {result['top_down']['level_name']} ; "
+            f"{result['top_down']['method']} ; écart de {fmt(result['top_down']['gap_pct'], 1)} % avec l'estimation.",
+            "",
+            md_table(pd.DataFrame(result["top_down"]["points"]), {
+                "issuer": "Émetteur", "rating": "Notation", "seniority": "Séniorité", "currency": "Devise",
+                "maturity_years": "Maturité (ans)", "z_spread_bp": "Spread observé (pb)",
+                "corrected_z_spread_bp": "Spread corrigé (pb)"}),
             "",
             "### Comparables",
             "",

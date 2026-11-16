@@ -1,6 +1,6 @@
 # Analyses de l'échantillon et des modèles
 
-- Généré le : 2026-11-14 20:43 UTC
+- Généré le : 2026-11-16 20:49 UTC
 - Source : données synthétiques
 - Obligations : 4 000 ; version du modèle : `0.1.0-4000-3f1029c103`
 - CatBoost : actif ; forêt aléatoire : incluse
@@ -329,7 +329,18 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 - Confiance : 96/100 (note A) ; erreur typique attendue 5 pb.
 - Spread observé dans la base pour cette obligation : 100 pb. Il n'a pas servi à l'estimation (l'obligation est exclue de ses propres comparables).
 - Palier : Simple. 5 obligations de l'émetteur, même devise et séniorité, encadrant la maturité (5.0 à 8.8 ans).
-- Modèle retenu : A (comparables). Estimations des modèles (pb) : courbe des pairs 83, A 93, B (CatBoost) 80, C (comparables corrigés) 91.
+- Modèle retenu : A (comparables). Estimations des modèles (pb) : courbe des pairs 83, A 93, B (CatBoost) 80, C (comparables corrigés) 91, lecture descendante 92.
+
+### Lecture descendante (contrôle)
+
+- 92 pb ; niveau : même émetteur, même devise et séniorité ; moyenne des 2 points les plus proches de chaque côté ; écart de -1,1 % avec l'estimation.
+
+| Émetteur | Notation | Séniorité | Devise | Maturité (ans) | Spread observé (pb) | Spread corrigé (pb) |
+|---|---|---|---|---|---|---|
+| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 6,4 | 92,2 | 87,4 |
+| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 5,1 | 87,4 | 89,7 |
+| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 7,8 | 101 | 95,0 |
+| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 8,8 | 94,1 | 93,8 |
 
 ### Comparables
 
@@ -345,6 +356,7 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 | Plage du segment de notation | ok | Estimation 93 pb ; plage 1 %-99 % des notations voisines : 30 à 155 pb. |
 | Accord champion-challenger | ok | Écart relatif entre les deux modèles : 15 % (en log). |
 | Comparables suffisants | ok | Nombre effectif de comparables hors émetteur : 39.9 ; poids de la courbe émetteur : 0.83. |
+| Accord avec la lecture descendante | ok | Lecture descendante 92 pb (même émetteur, même devise et séniorité) ; écart -1 % avec l'estimation. |
 
 ### Cascade (de l'obligation moyenne à l'estimation)
 

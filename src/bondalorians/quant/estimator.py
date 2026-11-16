@@ -31,6 +31,7 @@ from bondalorians.quant.confidence import (
 from bondalorians.quant.conformal import conformal_quantile
 from bondalorians.quant.gbm import SpreadCorrector, SpreadGBM, catboost_available
 from bondalorians.quant.peer_curve import PeerCurve
+from bondalorians.quant.topdown import top_down
 from bondalorians.quant.shrinkage import estimate_shrinkage_k, estimate_slope_shrinkage
 from bondalorians.quant.tuning import WEIGHT_KEYS, tune_comparables
 
@@ -42,7 +43,9 @@ FILTER_LEVELS = [
     "devise seule",
     "aucun filtre dur",
 ]
-MODEL_COLUMNS = {"A": "log_a", "B": "log_b", "C": "log_c"}
+# P : courbe des pairs seule. Elle concourt aussi : pour un émetteur inconnu, les
+# comparables d'autres émetteurs peuvent ajouter plus de bruit que d'information.
+MODEL_COLUMNS = {"A": "log_a", "B": "log_b", "C": "log_c", "P": "peer_log"}
 _ARRAYS_OBJECT = ["isin", "issuer", "currency", "seniority", "coupon_type", "sector", "country"]
 _ARRAYS_FLOAT = ["notch", "log_t", "maturity_years", "log_amt", "sen_rank", "obs_weight", "z_spread"]
 
@@ -297,6 +300,8 @@ class ZSpreadEstimator:
         oof = oof.reset_index(drop=True)
 
         available = [m for m, column in MODEL_COLUMNS.items() if oof[column].notna().all()]
+        if not cal.get("peer_curve_candidate", True):
+            available.remove("P")
         champion = {}
         oof["err"] = (oof["log_a"] - oof["y_log"]).abs()
         for key, group in oof.groupby("key"):
@@ -306,7 +311,7 @@ class ZSpreadEstimator:
                 m: float((group[MODEL_COLUMNS[m]].astype(float) - group["y_log"]).abs().median())
                 for m in available
             }
-            # Le modèle transparent reste champion sauf gain net d'un modèle ML.
+            # Le modèle A reste champion sauf gain net (marge) d'un autre modèle.
             best = min(medians, key=medians.get)
             beats = medians[best] < (1 - cal["champion_margin"]) * medians["A"]
             champion[key] = best if beats else "A"
@@ -398,7 +403,7 @@ class ZSpreadEstimator:
         t, exclude, observed = self.resolve(bond)
         core = self._core(t, exclude_isin=exclude)
         (log_b,), (log_c,) = self._ml_logs([t], [core])
-        logs = {"A": core["log_a"], "B": log_b, "C": log_c}
+        logs = {"A": core["log_a"], "B": log_b, "C": log_c, "P": core["peer_log"]}
         a, cal = self.a_, self.calibration_
 
         champion = (cal or {}).get("champion", {}).get(core["key"], "A")
@@ -464,6 +469,7 @@ class ZSpreadEstimator:
                 "A_comparables_bp": round(math.exp(core["log_a"]), 1),
                 "B_catboost_bp": None if log_b is None else round(math.exp(log_b), 1),
                 "C_comparables_corriges_bp": None if log_c is None else round(math.exp(log_c), 1),
+                "top_down_bp": None,
             },
             "confidence": confidence,
             "issuer_offset": {
@@ -476,10 +482,11 @@ class ZSpreadEstimator:
             "comparables": comparables,
             "waterfall": build_waterfall(
                 self.peer_.mean_log_, self.peer_.group_contributions(t),
-                core["issuer_term"],
+                0.0 if champion == "P" else core["issuer_term"],
                 f"Écart émetteur ({core['n_issuer']} obligation(s), retenu à {100 * lam:.0f} %"
                 + (", pente de maturité comprise)" if core["lam_slope"] > 0.05 and abs(core["delta_t"]) > 0.05 else ")"),
-                (1 - lam) * core["r_peers"], final_log,
+                0.0 if champion == "P" else (1 - lam) * core["r_peers"], final_log,
+                peers_label="Comparables hors émetteur" + (" (non retenus : courbe seule)" if champion == "P" else ""),
             ),
             "controls": run_controls(
                 estimate_bp, bounds, senior_ref, gap, core["n_eff"], lam, self.settings
@@ -487,6 +494,19 @@ class ZSpreadEstimator:
             "caveats": caveats,
             "model_version": self.model_version_,
         }
+        # Lecture descendante : contrôle lisible, pas le chiffre retenu.
+        reading = top_down(self, t, exclude_isin=exclude, mode=self.settings.get("top_down", {}).get("mode", "lisse"))
+        reading.pop("log")
+        reading["gap_pct"] = round(100 * (reading["z_spread_bp"] / estimate_bp - 1), 1)
+        result["top_down"] = reading
+        result["models"]["top_down_bp"] = reading["z_spread_bp"]
+        limit = 100 * self.settings["top_down"]["max_gap"] if "top_down" in self.settings else 25.0
+        result["controls"].append({
+            "control": "Accord avec la lecture descendante",
+            "status": "ok" if abs(reading["gap_pct"]) <= limit else "alerte",
+            "detail": f"Lecture descendante {reading['z_spread_bp']:.0f} pb ({reading['level_name']}) ; "
+                      f"écart {reading['gap_pct']:+.0f} % avec l'estimation.",
+        })
         if self.ml_ is not None:
             result["shap_log_catboost"] = {k: round(v, 4) for k, v in self.ml_.shap_log(t).items()}
         if self.corrector_ is not None:

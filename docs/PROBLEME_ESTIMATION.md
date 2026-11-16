@@ -219,7 +219,30 @@ Validation croisée à 5 plis, sous deux schémas :
   « émetteur inconnu ».
 
 Dans chaque palier, le modèle retenu est celui de plus faible erreur médiane.
-Un modèle ML doit faire au moins 5 % mieux que le modèle A pour le remplacer.
+Les candidats sont A, B, C et la courbe des pairs seule (P). Un candidat doit
+faire au moins 5 % mieux que le modèle A pour le remplacer.
+
+**Lecture descendante (contrôle, non retenue).** Démarche de trader : groupe le
+plus proche ayant assez de points (même émetteur, devise et séniorité ; puis
+même émetteur ; puis secteur, devise, lettre de notation et séniorité ; puis
+en relâchant devise et notation ; sinon courbe seule), correction variable par
+variable avec les coefficients de la courbe des pairs, puis interpolation
+en maturité (par défaut, moyenne des deux points les plus proches de chaque
+côté, ramenés à la maturité de la cible ; en option, interpolation linéaire
+stricte). Elle est affichée avec ses points et ses corrections ; un écart de
+plus de 25 % avec l'estimation déclenche une alerte.
+
+Mesure hors échantillon (profil réaliste), erreur médiane :
+
+| Palier | A | Courbe seule | Descendante stricte | Descendante lissée |
+|---|---|---|---|---|
+| Simple | 7,1 % | 12,5 % | 8,8 % | 7,6 % |
+| Intermédiaire | 8,8 % | 12,9 % | 9,8 % | 9,2 % |
+| Complexe | 17,1 % | 19,8 % | 17,6 % | 18,5 % |
+| Émetteur inconnu | 14,6 % | 14,4 % | 17,9 % | 16,3 % |
+
+La courbe seule ne bat A que de 1,4 % pour un émetteur inconnu : sous la marge
+de 5 %, elle n'est pas retenue avec les réglages par défaut.
 
 ### 4.7 Intervalle et score de confiance
 
