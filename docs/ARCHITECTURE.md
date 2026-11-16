@@ -33,7 +33,9 @@ Le déroulé détaillé, étape par étape, est dans
 | Schéma canonique et `schema_map.yaml` | Le schéma réel est inconnu avant le jour 1 |
 | Cœur transparent, ML en challenger | 4 000 obligations : un boosting seul surapprend, et un jury crédit lit des comparables |
 | Cible en log | Les spreads sont à peu près multiplicatifs entre notations |
-| Le modèle transparent reste champion sauf gain d'au moins 5 % | Un modèle ML choisi sur un écart minime est choisi par hasard |
+| Le modèle transparent reste champion sauf gain d'au moins 5 % | Un modèle choisi sur un écart minime est choisi par hasard |
+| La courbe des pairs seule concourt aussi | Pour un émetteur inconnu, les comparables d'autres émetteurs peuvent ajouter plus de bruit que d'information |
+| Lecture descendante affichée, pas retenue | Plus parlante pour un gérant, mais moins précise : elle repose sur peu de points |
 | Coefficients appris quand les données le permettent | Moins d'arbitraire, mais chaque réglage est validé hors échantillon |
 | Deux schémas de validation | L'erreur sur émetteur jamais vu est bien plus forte que sur émetteur connu |
 | Façade indépendante de MCP | La démo survit à une panne du serveur ou du LLM |

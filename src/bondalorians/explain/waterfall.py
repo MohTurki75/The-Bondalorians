@@ -14,6 +14,7 @@ def build_waterfall(
     issuer_label: str,
     peers_term_log: float,
     final_log: float,
+    peers_label: str = "Comparables hors émetteur",
 ) -> list[dict]:
     """Chaque étape est un écart en log converti en points de base, dans l'ordre.
 
@@ -33,10 +34,10 @@ def build_waterfall(
     for group, label in GROUP_LABELS.items():
         add(label, group_contributions.get(group, 0.0))
     add(issuer_label, issuer_term_log)
-    add("Comparables hors émetteur", peers_term_log)
+    add(peers_label, peers_term_log)
     residual = final_log - cumulative
     if abs(residual) > 1e-9:
-        add("Ajustement du modèle ML retenu", residual)
+        add("Ajustement du modèle retenu", residual)
     for step in steps:
         step["cumulative_bp"] = round(step["cumulative_bp"], 1)
         if step["delta_bp"] is not None:

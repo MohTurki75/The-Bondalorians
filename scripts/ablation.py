@@ -8,6 +8,8 @@ Chaque ligne ajoute une amélioration à la précédente. Deux situations :
 
 --historique : ajoute les premières étapes (k fixe, poids manuels).
 --ml : ajoute CatBoost (modèles B et C) en dernière étape.
+--topdown : compare aussi la lecture descendante au modèle A, sur les plis du
+            backtest, par palier et par niveau utilisé.
 """
 
 import copy
@@ -17,14 +19,18 @@ import pandas as pd
 
 from bondalorians.config import load_settings
 from bondalorians.quant.backtest import holdout_evaluation
+from bondalorians.quant.estimator import ZSpreadEstimator
+from bondalorians.quant.topdown import evaluate_top_down
 
 paths = [a for a in sys.argv[1:] if not a.startswith("--")] or ["data/synthetic_bonds.csv"]
 use_ml = "--ml" in sys.argv
 base = load_settings("config/settings.yaml")
 
 
-def variant(k="auto", tune=True, adaptive=True, corrector=False, enriched=False, slope=False, dispersion=False):
+def variant(k="auto", tune=True, adaptive=True, corrector=False, enriched=False, slope=False, dispersion=False,
+            peer_candidate=False):
     settings = copy.deepcopy(base)
+    settings["calibration"]["peer_curve_candidate"] = peer_candidate
     settings["comparables"].update(issuer_shrinkage_k=k, tune=tune, issuer_slope=slope)
     settings["calibration"]["adaptive"] = adaptive
     settings["ml"]["corrector"] = corrector
@@ -45,10 +51,11 @@ variants += [
     ("+ courbe des pairs enrichie", variant(enriched=True), False),
     ("+ pente de maturité par émetteur", variant(enriched=True, slope=True), False),
     ("+ dispersion dans la confiance", variant(enriched=True, slope=True, dispersion=True), False),
+    ("+ courbe seule candidate", variant(enriched=True, slope=True, dispersion=True, peer_candidate=True), False),
 ]
 if use_ml:
     variants.append(("+ CatBoost (B et correcteur C)",
-                     variant(enriched=True, slope=True, dispersion=True, corrector=True), True))
+                     variant(enriched=True, slope=True, dispersion=True, peer_candidate=True, corrector=True), True))
 
 for path in paths:
     universe = pd.read_csv(path)
@@ -72,3 +79,11 @@ for path in paths:
             })
     print(f"\n=== {path} ({len(universe)} obligations, ML={'oui' if use_ml else 'non'}) ===")
     print(pd.DataFrame(rows).to_string(index=False))
+
+    if "--topdown" in sys.argv:
+        estimator = ZSpreadEstimator(base, use_ml=False).fit(universe)
+        tables = evaluate_top_down(estimator)
+        print(f"\n--- Lecture descendante contre modèle A, erreur médiane (%), {path} ---")
+        print(tables["par_palier"].to_string(index=False))
+        print("\nPar niveau utilisé par la lecture descendante :")
+        print(tables["par_niveau"].to_string(index=False))

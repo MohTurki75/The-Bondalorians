@@ -31,11 +31,13 @@ DEFAULTS: dict = {
     },
     "calibration": {"alpha": 0.10, "n_folds": 5, "min_per_key": 50, "seed": 7, "adaptive": True,
         "champion_margin": 0.05,
+        "peer_curve_candidate": True,
     },
     "confidence": {"grades": {"A": 75, "B": 50}, "dispersion_features": True},
     "controls": {"max_model_gap": 0.25, "min_effective_comparables": 3.0},
     "feedback": {"weights": {"trade": 1.0, "opinion": 0.3}},
     "analysis": {"clustering_reading_k": 4},
+    "top_down": {"mode": "lisse", "max_gap": 0.25},
 }
 
 

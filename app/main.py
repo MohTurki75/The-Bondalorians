@@ -29,8 +29,10 @@ MODEL_LABELS = {
     "A_comparables_bp": "A · Comparables ajustés",
     "B_catboost_bp": "B · CatBoost indépendant",
     "C_comparables_corriges_bp": "C · Comparables corrigés",
+    "top_down_bp": "Lecture descendante (contrôle)",
 }
-CHAMPION_KEY = {"A": "A_comparables_bp", "B": "B_catboost_bp", "C": "C_comparables_corriges_bp"}
+CHAMPION_KEY = {"A": "A_comparables_bp", "B": "B_catboost_bp", "C": "C_comparables_corriges_bp",
+                "P": "courbe_pairs_bp"}
 TIER_LABELS = {
     "simple": "Simple", "intermediaire": "Intermédiaire", "complexe": "Complexe",
     "emetteur_inconnu": "Émetteur inconnu",
@@ -169,6 +171,32 @@ def show_result(result: dict) -> None:
             controls.rename(columns={"control": "Contrôle", "status": "Résultat", "detail": "Détail"}),
             hide_index=True, width="stretch",
         )
+
+    reading = result.get("top_down")
+    if reading:
+        st.subheader("Lecture descendante (contrôle)")
+        st.caption(
+            "La démarche d'un trader : on prend le groupe d'obligations le plus proche qui a assez de points "
+            "(d'abord l'émetteur lui-même, puis le même secteur, la même devise, la même notation…), on corrige "
+            "chaque point de ce qui le distingue de votre obligation, puis on interpole en maturité. Ce n'est pas "
+            "le chiffre retenu : hors échantillon, elle se trompe davantage, car elle repose sur peu de points. "
+            "Un fort écart avec l'estimation est un signal à examiner."
+        )
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Lecture descendante", f"{reading['z_spread_bp']:.0f} pb")
+        c2.metric("Écart avec l'estimation", f"{reading['gap_pct']:+.0f} %")
+        c3.metric("Niveau utilisé", f"{reading['level']} sur 7", help=reading["level_name"])
+        st.write(f"**Niveau** : {reading['level_name']}. **Méthode** : {reading['method']}.")
+        if reading["points"]:
+            st.dataframe(pd.DataFrame(reading["points"]).rename(columns={
+                "isin": "ISIN", "issuer": "Émetteur", "rating": "Notation", "seniority": "Séniorité",
+                "currency": "Devise", "maturity_years": "Maturité (ans)", "z_spread_bp": "Spread observé (pb)",
+                "corrected_z_spread_bp": "Corrigé à votre profil (pb)", "correction_pct": "Correction (%)",
+            }), hide_index=True, width="stretch")
+        if reading["corrections_pct"]:
+            st.caption("Corrections moyennes appliquées aux points, variable par variable (des corrections de "
+                       "sens opposé se compensent ; voir la colonne Correction pour chaque point) : " + " ; ".join(
+                f"{k} {v:+.1f} %" for k, v in reading["corrections_pct"].items()) + ".")
 
     offset = result["issuer_offset"]
     st.subheader(f"Comparables hors émetteur ({len(result['comparables'])})")

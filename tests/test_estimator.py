@@ -105,6 +105,6 @@ def test_ml_champion_needs_a_clear_margin(universe, settings):
     settings["calibration"]["champion_margin"] = 0.99  # aucun modèle ML ne peut gagner
     estimator = ZSpreadEstimator(settings, use_ml=True).fit(small)
     assert set(estimator.calibration_["champion"].values()) == {"A"}
-    assert estimator.calibration_["available_models"] == ["A", "B", "C"]
+    assert estimator.calibration_["available_models"] == ["A", "B", "C", "P"]
     columns = estimator.backtest_summary()[0]
     assert "mae_bp_C_comparables_corriges" in columns and "mae_bp_B_catboost" in columns

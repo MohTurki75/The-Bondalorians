@@ -164,8 +164,31 @@ CatBoost donne une estimation indépendante (B) et une correction du modèle A (
 
 ### 7. Choix du chiffre final
 
-Le champion du palier donne l'estimation. L'écart entre A et B alimente un
-contrôle : au-delà de 25 %, le cas est signalé.
+Le champion du palier donne l'estimation. Les candidats sont le modèle A,
+les modèles CatBoost B et C, et la courbe des pairs seule (P) ; un candidat
+doit faire au moins 5 % mieux que A pour le remplacer. L'écart entre A et B
+alimente un contrôle : au-delà de 25 %, le cas est signalé.
+
+### 7 bis. Lecture descendante (contrôle)
+
+À côté du chiffre retenu, le programme calcule la démarche d'un trader :
+
+1. il prend le groupe d'obligations le plus proche qui a assez de points :
+   même émetteur, même devise et séniorité (au moins 2) ; sinon même
+   émetteur ; sinon même secteur, devise, lettre de notation et séniorité
+   (au moins 3) ; puis en relâchant la devise, puis la notation ; sinon la
+   courbe des pairs seule ;
+2. il corrige chaque point, variable par variable, de ce qui le distingue de
+   la cible (hors maturité), avec les coefficients de la courbe des pairs ;
+3. il moyenne les deux points les plus proches de chaque côté en maturité,
+   chacun ramené à la maturité de la cible par la courbe (mode « lisse », par
+   défaut). Le mode « strict » interpole linéairement entre les deux points qui
+   encadrent la cible ; hors de leur plage, il part du point le plus proche et
+   applique l'effet de maturité de la courbe.
+
+Ce chiffre n'est pas retenu : il se trompe davantage hors échantillon, car il
+repose sur peu de points. Il sert d'explication et de contrôle : un écart de
+plus de 25 % avec l'estimation passe le contrôle en alerte.
 
 ### 8. Intervalle et confiance
 
@@ -250,6 +273,25 @@ précision sur données réelles.
 - Sur le profil simple, ces ajouts ne gagnent rien (variations de ±4 %, dans
   le bruit) et la pente émetteur est neutralisée : ils ne dégradent pas un
   marché qui n'a pas ces effets.
+
+### Lecture descendante et courbe seule candidate (profil réaliste)
+
+Erreur médiane hors échantillon (`python scripts/ablation.py --topdown`) :
+
+| Palier | Modèle A | Courbe seule | Descendante stricte | Descendante lissée |
+|---|---|---|---|---|
+| Simple | **7,1 %** | 12,5 % | 8,8 % | 7,6 % |
+| Intermédiaire | **8,8 %** | 12,9 % | 9,8 % | 9,2 % |
+| Complexe | **17,1 %** | 19,8 % | 17,6 % | 18,5 % |
+| Émetteur inconnu | 14,6 % | **14,4 %** | 17,9 % | 16,3 % |
+
+- La lecture descendante ne bat le modèle A dans aucun palier. L'interpolation
+  stricte entre deux points est la moins précise ; la version lissée, retenue
+  par défaut pour l'affichage, s'en approche.
+- La courbe seule ne fait que 1,4 % mieux que A pour un émetteur inconnu une
+  fois les poids des comparables réglés : sous la marge de 5 %, elle n'est pas
+  retenue. Sans réglage des poids, l'écart était de 6 % et elle l'était. La
+  candidature reste active pour les données réelles.
 
 ### Premières améliorations
 

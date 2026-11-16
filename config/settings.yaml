@@ -51,6 +51,7 @@ calibration:
   min_per_key: 50            # effectif minimal pour un quantile par palier
   seed: 7
   adaptive: true             # intervalle élargi ou resserré selon la difficulté prédite
+  peer_curve_candidate: true  # la courbe des pairs seule peut être retenue (même marge)
   champion_margin: 0.05      # gain relatif exigé pour qu'un modèle ML détrône le modèle A
 
 confidence:
@@ -72,3 +73,10 @@ analysis:
   # Nombre de familles affiché quand les données n'ont pas de structure en
   # groupes nette (cas d'un continuum). Choix de lecture, pas un résultat.
   clustering_reading_k: 4
+
+top_down:
+  # Lecture descendante affichée en contrôle : strict (interpolation entre les
+  # deux points qui encadrent la cible), lisse (2 points de chaque côté) ou
+  # mixte (strict sur l'émetteur, lisse ailleurs).
+  mode: lisse                # le plus précis hors échantillon (voir scripts/ablation.py --topdown)
+  max_gap: 0.25              # écart relatif au-delà duquel le contrôle passe en alerte
