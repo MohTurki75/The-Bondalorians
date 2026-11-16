@@ -146,6 +146,14 @@ def analyze_clusters(method: str = "kmeans", run_id: str | None = None,
 
 
 @mcp.tool()
+def model_quality(include_forest: bool = True) -> dict:
+    """Qualité de chaque modèle et des lectures de contrôle : erreur, biais, stabilité entre plis,
+    apport par rapport à la courbe des pairs, surapprentissage, couverture ; tests réussis ou
+    échoués avec leur règle. Prend environ une minute."""
+    return service().model_quality(include_forest)
+
+
+@mcp.tool()
 def analysis_report(run_id: str | None = None, include_forest: bool = True) -> str:
     """Rapport Markdown complet des analyses (consigne d'interprétation, glossaire, constats,
     tableaux), avec l'obligation d'une estimation si run_id est donné. Prend environ 30 secondes."""

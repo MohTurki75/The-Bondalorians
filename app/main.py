@@ -174,29 +174,55 @@ def show_result(result: dict) -> None:
 
     reading = result.get("top_down")
     if reading:
+        funnel = "steps" in reading
         st.subheader("Lecture descendante (contrôle)")
-        st.caption(
-            "La démarche d'un trader : on prend le groupe d'obligations le plus proche qui a assez de points "
-            "(d'abord l'émetteur lui-même, puis le même secteur, la même devise, la même notation…), on corrige "
-            "chaque point de ce qui le distingue de votre obligation, puis on interpole en maturité. Ce n'est pas "
-            "le chiffre retenu : hors échantillon, elle se trompe davantage, car elle repose sur peu de points. "
-            "Un fort écart avec l'estimation est un signal à examiner."
-        )
+        if funnel:
+            st.caption(
+                "Méthode de l'entonnoir. Si l'émetteur a au moins deux autres obligations de même notation, "
+                "séniorité et devise, on interpole entre elles (courbe parfaite). Sinon, on part de tout "
+                "l'univers et on impose une à une les variables qui expliquent le plus le spread, tant qu'il reste "
+                "assez d'obligations dans le panier ; chaque obligation du panier est ensuite corrigée de ce qui la "
+                "distingue de la vôtre, et l'on prend le barycentre (la moyenne). Ce n'est pas le chiffre retenu : "
+                "un fort écart avec l'estimation est un signal à examiner."
+            )
+        else:
+            st.caption(
+                "La démarche d'un trader : on prend le groupe d'obligations le plus proche qui a assez de points, "
+                "on corrige chaque point de ce qui le distingue de votre obligation, puis on interpole en maturité. "
+                "Ce n'est pas le chiffre retenu : un fort écart avec l'estimation est un signal à examiner."
+            )
         c1, c2, c3 = st.columns(3)
         c1.metric("Lecture descendante", f"{reading['z_spread_bp']:.0f} pb")
         c2.metric("Écart avec l'estimation", f"{reading['gap_pct']:+.0f} %")
-        c3.metric("Niveau utilisé", f"{reading['level']} sur 7", help=reading["level_name"])
-        st.write(f"**Niveau** : {reading['level_name']}. **Méthode** : {reading['method']}.")
+        if funnel:
+            c3.metric("Panier", f"{reading['basket_size']} obligations",
+                      help=None if reading.get("dispersion_pct") is None
+                      else f"Dispersion des spreads corrigés du panier : {reading['dispersion_pct']:.0f} %")
+        else:
+            c3.metric("Niveau utilisé", f"{reading['level']} sur 7", help=reading["level_name"])
+        st.write(f"**Groupe utilisé** : {reading['level_name']}. **Méthode** : {reading['method']}.")
+        if funnel and not reading.get("perfect_curve"):
+            steps = pd.DataFrame(reading["steps"])
+            steps["imposee"] = steps["imposee"].map({True: "✓ imposée", False: "✗ manquante (corrigée)"})
+            st.dataframe(steps.rename(columns={
+                "variable": "Variable (de la plus explicative à la moins)", "part_expliquee": "Part du spread expliquée",
+                "imposee": "Dans le panier", "restantes": "Obligations restantes"}),
+                hide_index=True, width="stretch",
+                column_config={"Part du spread expliquée": st.column_config.NumberColumn(format="percent")})
         if reading["points"]:
+            label = ("Obligations du panier les plus proches en maturité" if funnel and reading["basket_size"] > len(
+                reading["points"]) else "Obligations utilisées")
+            st.caption(f"{label} :")
             st.dataframe(pd.DataFrame(reading["points"]).rename(columns={
                 "isin": "ISIN", "issuer": "Émetteur", "rating": "Notation", "seniority": "Séniorité",
-                "currency": "Devise", "maturity_years": "Maturité (ans)", "z_spread_bp": "Spread observé (pb)",
-                "corrected_z_spread_bp": "Corrigé à votre profil (pb)", "correction_pct": "Correction (%)",
+                "sector": "Secteur", "currency": "Devise", "maturity_years": "Maturité (ans)",
+                "z_spread_bp": "Spread observé (pb)", "corrected_z_spread_bp": "Corrigé à votre profil (pb)",
+                "correction_pct": "Correction (%)",
             }), hide_index=True, width="stretch")
-        if reading["corrections_pct"]:
-            st.caption("Corrections moyennes appliquées aux points, variable par variable (des corrections de "
-                       "sens opposé se compensent ; voir la colonne Correction pour chaque point) : " + " ; ".join(
-                f"{k} {v:+.1f} %" for k, v in reading["corrections_pct"].items()) + ".")
+        if reading.get("corrections_pct"):
+            st.caption("Impact moyen de chaque variable dans la correction des points (des corrections de sens "
+                       "opposé se compensent) : " + " ; ".join(
+                           f"{k} {v:+.1f} %" for k, v in reading["corrections_pct"].items()) + ".")
 
     offset = result["issuer_offset"]
     st.subheader(f"Comparables hors émetteur ({len(result['comparables'])})")

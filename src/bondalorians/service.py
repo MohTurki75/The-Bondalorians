@@ -157,6 +157,12 @@ class Service:
     def analyze_comparables(self, run_id: str) -> dict:
         return for_agent(comparables_view(self.estimator, self.get_run(run_id)["payload"]["result"]))
 
+    def model_quality(self, include_forest: bool = True, max_cases: int | None = 1500) -> dict:
+        """Indicateurs hors échantillon et tests de validation de chaque modèle."""
+        from bondalorians.analysis.quality import model_quality
+
+        return for_agent(model_quality(self.estimator, include_forest=include_forest, max_cases=max_cases))
+
     def analysis_report(self, run_id: str | None = None, include_forest: bool = True,
                         source: str = "") -> str:
         """Rapport Markdown complet, à donner à un LLM pour interprétation."""

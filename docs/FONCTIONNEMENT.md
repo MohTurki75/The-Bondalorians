@@ -169,26 +169,34 @@ les modèles CatBoost B et C, et la courbe des pairs seule (P) ; un candidat
 doit faire au moins 5 % mieux que A pour le remplacer. L'écart entre A et B
 alimente un contrôle : au-delà de 25 %, le cas est signalé.
 
-### 7 bis. Lecture descendante (contrôle)
+### 7 bis. Lecture de contrôle : la méthode de l'entonnoir
 
-À côté du chiffre retenu, le programme calcule la démarche d'un trader :
+À côté du chiffre retenu, le programme calcule une estimation à la manière
+d'un trader, affichée avec ses étapes :
 
-1. il prend le groupe d'obligations le plus proche qui a assez de points :
-   même émetteur, même devise et séniorité (au moins 2) ; sinon même
-   émetteur ; sinon même secteur, devise, lettre de notation et séniorité
-   (au moins 3) ; puis en relâchant la devise, puis la notation ; sinon la
-   courbe des pairs seule ;
-2. il corrige chaque point, variable par variable, de ce qui le distingue de
-   la cible (hors maturité), avec les coefficients de la courbe des pairs ;
-3. il moyenne les deux points les plus proches de chaque côté en maturité,
-   chacun ramené à la maturité de la cible par la courbe (mode « lisse », par
-   défaut). Le mode « strict » interpole linéairement entre les deux points qui
-   encadrent la cible ; hors de leur plage, il part du point le plus proche et
-   applique l'effet de maturité de la courbe.
+1. **Courbe parfaite.** Si l'émetteur a au moins deux autres obligations de
+   même notation, séniorité et devise, il interpole linéairement en maturité
+   entre elles.
+2. **Sinon, entonnoir.** Les variables sont classées de la plus explicative à
+   la moins explicative du spread (part de la dispersion expliquée par chaque
+   variable seule : notation, émetteur, séniorité, remboursable, secteur,
+   maturité par tranche, pays, devise, taille, coupon). En partant de tout
+   l'univers, le programme impose une à une ces variables (même valeur que la
+   cible), tant qu'il reste au moins 150 obligations dans le panier. Une
+   variable qui viderait trop le panier n'est pas imposée : elle est
+   « manquante ».
+3. **Correction.** Chaque obligation du panier est corrigée de ce qui la
+   distingue de la cible (variables manquantes, maturité, écarts fins à
+   l'intérieur des catégories) par l'impact de chaque variable sur le spread,
+   donné par les coefficients de la courbe des pairs.
+4. **Barycentre.** L'estimation est la moyenne des spreads corrigés du panier
+   (en log).
 
-Ce chiffre n'est pas retenu : il se trompe davantage hors échantillon, car il
-repose sur peu de points. Il sert d'explication et de contrôle : un écart de
-plus de 25 % avec l'estimation passe le contrôle en alerte.
+La taille minimale du panier (150) a été choisie par mesure : l'erreur baisse
+quand on passe de 5 à 150 obligations, puis remonte légèrement. Ce chiffre
+n'est pas retenu ; un écart de plus de 25 % avec l'estimation passe le
+contrôle en alerte. L'ancienne lecture descendante par niveaux reste
+disponible (`top_down.reader` dans `config/settings.yaml`).
 
 ### 8. Intervalle et confiance
 
@@ -292,6 +300,21 @@ Erreur médiane hors échantillon (`python scripts/ablation.py --topdown`) :
   fois les poids des comparables réglés : sous la marge de 5 %, elle n'est pas
   retenue. Sans réglage des poids, l'écart était de 6 % et elle l'était. La
   candidature reste active pour les données réelles.
+
+### Entonnoir (profil réaliste, tous les cas du backtest)
+
+| Palier | Modèle A | Courbe seule | Descendante lissée | Entonnoir |
+|---|---|---|---|---|
+| Simple | **7,1 %** | 12,5 % | 7,6 % | 8,8 % |
+| Intermédiaire | **8,8 %** | 12,9 % | 9,2 % | 11,4 % |
+| Complexe | **17,1 %** | 19,8 % | 18,5 % | 20,5 % |
+| Émetteur inconnu | 14,6 % | 14,4 % | 16,3 % | **14,3 %** |
+
+- Pour un émetteur inconnu, l'entonnoir est la meilleure méthode, de très peu
+  (14,3 % contre 14,6 % pour A).
+- Pour un émetteur connu sans courbe parfaite (palier intermédiaire), il est
+  nettement moins bon que A : il n'utilise pas les autres obligations de
+  l'émetteur, sauf si elles sont au moins 150.
 
 ### Premières améliorations
 

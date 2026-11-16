@@ -359,6 +359,34 @@ de 5 %. Le correcteur C améliore A dans 49 % des cas : c'est du bruit.
   (10 familles). La seule séparation nette est dette senior contre dette
   subordonnée.
 
+### Lecture de contrôle : méthode de l'entonnoir (par défaut)
+
+Si l'émetteur a au moins 2 autres obligations de même notation, séniorité et
+devise : interpolation linéaire en maturité entre elles. Sinon : variables
+classées par part de la dispersion des log-spreads expliquée seule (notation,
+émetteur, séniorité, remboursable, secteur, tranche de maturité, pays, devise,
+tiers de taille, coupon) ; imposées une à une tant qu'il reste au moins 150
+obligations ; chaque obligation du panier corrigée jusqu'au profil de la cible
+avec les coefficients de la courbe des pairs ; barycentre (moyenne des
+log-spreads corrigés).
+
+| Palier | A | Courbe seule | Descendante lissée | Entonnoir |
+|---|---|---|---|---|
+| Simple | 7,1 % | 12,5 % | 7,6 % | 8,8 % |
+| Intermédiaire | 8,8 % | 12,9 % | 9,2 % | 11,4 % |
+| Complexe | 17,1 % | 19,8 % | 18,5 % | 20,5 % |
+| Émetteur inconnu | 14,6 % | 14,4 % | 16,3 % | 14,3 % |
+
+### Tests de validation (`scripts/qualite.py`)
+
+Biais (|médiane signée| ≤ 2 %), stabilité entre plis (variation ≤ 15 %),
+apport par rapport à la courbe des pairs, surapprentissage (validation ≤ 1,3 ×
+apprentissage, modèles paramétriques seulement), couverture de l'intervalle
+(85–95 %, estimation retenue). Sur le profil réaliste : 40 réussis, 11 échoués,
+15 non applicables. Échecs notables : l'estimation retenue ne bat pas la
+courbe seule pour un émetteur inconnu (−1,1 %) ; CatBoost a un biais de −4 % ;
+la forêt aléatoire surapprend (× 1,5).
+
 ## 6. Faiblesses connues
 
 1. **Validation sur données trop favorables.** Le générateur synthétique est

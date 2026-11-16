@@ -31,7 +31,7 @@ from bondalorians.quant.confidence import (
 from bondalorians.quant.conformal import conformal_quantile
 from bondalorians.quant.gbm import SpreadCorrector, SpreadGBM, catboost_available
 from bondalorians.quant.peer_curve import PeerCurve
-from bondalorians.quant.topdown import top_down
+from bondalorians.quant.topdown import read as read_control
 from bondalorians.quant.shrinkage import estimate_shrinkage_k, estimate_slope_shrinkage
 from bondalorians.quant.tuning import WEIGHT_KEYS, tune_comparables
 
@@ -495,7 +495,8 @@ class ZSpreadEstimator:
             "model_version": self.model_version_,
         }
         # Lecture descendante : contrôle lisible, pas le chiffre retenu.
-        reading = top_down(self, t, exclude_isin=exclude, mode=self.settings.get("top_down", {}).get("mode", "lisse"))
+        reader = self.settings.get("top_down", {}).get("reader", "Entonnoir avec maturité")
+        reading = read_control(self, t, reader, exclude_isin=exclude, explain=True)
         reading.pop("log")
         reading["gap_pct"] = round(100 * (reading["z_spread_bp"] / estimate_bp - 1), 1)
         result["top_down"] = reading

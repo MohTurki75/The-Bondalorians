@@ -145,11 +145,12 @@ def test_report_for_llm(estimator, universe):
     from bondalorians.analysis.report import build_report
 
     result = estimator.estimate(universe["isin"].iloc[0])
-    report = build_report(estimator, result, "données synthétiques", include_forest=False, methods=("kmeans", "ward"))
+    report = build_report(estimator, result, "données synthétiques", include_forest=False, methods=("kmeans", "ward"),
+                          include_quality=False)
     for heading in ("## Consigne", "## Glossaire", "## 1. Échantillon", "## 2. Les modèles un par un",
                     "## 3. Comparaison des modèles et confiance", "## 4. Clustering", "## 5. Obligation estimée"):
         assert heading in report
     assert "Spread observé dans la base" in report and "nan" not in report.lower().replace("nant", "")
     assert all(line.count("|") >= 2 for line in report.splitlines() if line.startswith("|"))
-    without_bond = build_report(estimator, None, include_forest=False, methods=("kmeans",))
+    without_bond = build_report(estimator, None, include_forest=False, methods=("kmeans",), include_quality=False)
     assert "## 5. Obligation estimée" not in without_bond

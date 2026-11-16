@@ -75,8 +75,13 @@ analysis:
   clustering_reading_k: 4
 
 top_down:
-  # Lecture descendante affichée en contrôle : strict (interpolation entre les
-  # deux points qui encadrent la cible), lisse (2 points de chaque côté) ou
-  # mixte (strict sur l'émetteur, lisse ailleurs).
-  mode: lisse                # le plus précis hors échantillon (voir scripts/ablation.py --topdown)
+  # Lecture de contrôle affichée avec chaque estimation (jamais le chiffre retenu) :
+  # « Entonnoir avec maturité », « Entonnoir » (maturité seulement corrigée),
+  # « Descendante lissée », « Descendante stricte » ou « Descendante mixte ».
+  reader: Entonnoir avec maturité
   max_gap: 0.25              # écart relatif au-delà duquel le contrôle passe en alerte
+
+funnel:
+  # Taille minimale du panier : une variable n'est imposée que s'il reste au
+  # moins ce nombre d'obligations. Mesuré : l'erreur baisse jusqu'à environ 150.
+  min_basket: 150
