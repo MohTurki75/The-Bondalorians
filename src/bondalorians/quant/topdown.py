@@ -149,41 +149,92 @@ def _result(estimator, t, level, value, idx, used, method, correction, adjusted,
             "corrections_pct": corrections, "n_candidates": int(len(idx))}
 
 
-def evaluate_top_down(estimator, modes=MODES) -> dict[str, pd.DataFrame]:
-    """Compare la lecture descendante au modèle A sur les plis exacts du backtest.
+READERS = {
+    "Descendante stricte": ("topdown", "strict"),
+    "Descendante lissée": ("topdown", "lisse"),
+    "Descendante mixte": ("topdown", "mixte"),
+    "Entonnoir": ("funnel", False),
+    "Entonnoir avec maturité": ("funnel", True),
+}
 
-    L'estimateur doit être calibré. Renvoie l'erreur médiane (en %) par palier
-    et par niveau de la lecture descendante.
+
+def read(estimator, target: dict, reader: str, exclude_isin=None, explain: bool = False) -> dict:
+    """Lecture descendante ou entonnoir selon `reader` (clé de READERS).
+
+    Renvoie toujours `z_spread_bp`, `log`, `method` et `level_name` (description
+    courte du groupe d'obligations utilisé).
+    """
+    from bondalorians.quant.funnel import funnel
+
+    kind, option = READERS[reader]
+    if kind == "topdown":
+        reading = top_down(estimator, target, exclude_isin=exclude_isin, mode=option)
+    else:
+        min_basket = estimator.settings.get("funnel", {}).get("min_basket", 150)
+        reading = funnel(estimator, target, exclude_isin=exclude_isin, include_maturity=option,
+                         min_basket=min_basket, explain=explain)
+        if reading.get("perfect_curve"):
+            reading["level_name"] = "courbe parfaite de l'émetteur (même notation, séniorité et devise)"
+        else:
+            imposed = [s["variable"] for s in reading["steps"] if s["imposee"]]
+            reading["level_name"] = (f"panier de {reading['basket_size']} obligations : même "
+                                     + ", ".join(v.lower() for v in imposed)) if imposed else "tout l'univers"
+    reading["reader"] = reader
+    return reading
+
+
+def readings_out_of_fold(estimator, readers=tuple(READERS), max_cases: int | None = None,
+                         seed: int = 3) -> pd.DataFrame:
+    """Prédictions hors échantillon des lectures, sur les plis exacts du backtest.
+
+    Renvoie une ligne par cas du backtest (row_id, scheme) avec une colonne
+    `log_<lecteur>` par lecture. `max_cases` limite le nombre de cas (tirage).
     """
     if estimator.calibration_ is None:
         raise RuntimeError("Estimateur non calibré.")
-    oof = estimator.calibration_["oof"][["row_id", "scheme", "key", "y_log", "log_a", "peer_log"]]
+    oof = estimator.calibration_["oof"][["row_id", "scheme"]]
+    if max_cases is not None and len(oof) > max_cases:
+        oof = oof.sample(max_cases, random_state=seed)
+    wanted = set(zip(oof["row_id"], oof["scheme"]))
     folds = estimator.make_folds(np.random.default_rng(estimator.settings["calibration"]["seed"]))
     rows = []
     for scheme, fold_ids in folds.items():
         for fold in np.unique(fold_ids):
-            test = np.flatnonzero(fold_ids == fold)
+            test = [i for i in np.flatnonzero(fold_ids == fold) if (int(i), scheme) in wanted]
+            if not test:
+                continue
             sub = estimator.spawn(use_ml=False)
             sub.fit_base(estimator.df_[fold_ids != fold])
             for i in test:
                 target = estimator.df_.iloc[i].to_dict()
-                row = {"row_id": int(i), "scheme": scheme}
-                for mode in modes:
-                    reading = top_down(sub, target, mode=mode)
-                    row[f"log_{mode}"] = reading["log"]
-                    if mode == modes[0]:
+                row = {"row_id": int(i), "scheme": scheme, "fold": int(fold)}
+                for reader in readers:
+                    reading = read(sub, target, reader)
+                    row[f"log_{reader}"] = reading["log"]
+                    if reader.startswith("Descendante") and "level" in reading and "niveau" not in row:
                         row["niveau"] = f"{reading['level']}. {reading['level_name']}"
                 rows.append(row)
-    data = pd.DataFrame(rows).merge(oof, on=["row_id", "scheme"])
-    columns = {"log_a": "Modèle A", "peer_log": "Courbe des pairs seule",
-               **{f"log_{m}": f"Top-down {m}" for m in modes}}
+    return pd.DataFrame(rows)
+
+
+def evaluate_top_down(estimator, readers=tuple(READERS), max_cases: int | None = None) -> dict[str, pd.DataFrame]:
+    """Compare les lectures au modèle A sur les plis exacts du backtest.
+
+    Renvoie l'erreur médiane (en %) par palier, et par niveau de la lecture
+    descendante quand elle est calculée.
+    """
+    oof = estimator.calibration_["oof"][["row_id", "scheme", "key", "y_log", "log_a", "peer_log"]]
+    data = readings_out_of_fold(estimator, readers, max_cases).merge(oof, on=["row_id", "scheme"])
+    columns = {"log_a": "Modèle A", "peer_log": "Courbe des pairs seule", **{f"log_{r}": r for r in readers}}
     for column in columns:
         data["err_" + column] = (data[column] - data["y_log"]).abs()
     errors = [f"err_{c}" for c in columns]
     names = {f"err_{c}": label for c, label in columns.items()}
     by_tier = (100 * data.groupby("key")[errors].median()).rename(columns=names).round(1)
     by_tier.insert(0, "Cas", data.groupby("key").size())
-    by_level = (100 * data.groupby("niveau")[errors].median()).rename(columns=names).round(1)
-    by_level.insert(0, "Cas", data.groupby("niveau").size())
-    return {"par_palier": by_tier.reset_index().rename(columns={"key": "Palier"}),
-            "par_niveau": by_level.reset_index().rename(columns={"niveau": "Niveau du top-down"})}
+    out = {"par_palier": by_tier.reset_index().rename(columns={"key": "Palier"})}
+    if "niveau" in data:
+        by_level = (100 * data.groupby("niveau")[errors].median()).rename(columns=names).round(1)
+        by_level.insert(0, "Cas", data.groupby("niveau").size())
+        out["par_niveau"] = by_level.reset_index().rename(columns={"niveau": "Niveau du top-down"})
+    return out

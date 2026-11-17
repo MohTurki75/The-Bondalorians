@@ -37,7 +37,8 @@ DEFAULTS: dict = {
     "controls": {"max_model_gap": 0.25, "min_effective_comparables": 3.0},
     "feedback": {"weights": {"trade": 1.0, "opinion": 0.3}},
     "analysis": {"clustering_reading_k": 4},
-    "top_down": {"mode": "lisse", "max_gap": 0.25},
+    "top_down": {"reader": "Entonnoir avec maturité", "max_gap": 0.25},
+    "funnel": {"min_basket": 150},
 }
 
 

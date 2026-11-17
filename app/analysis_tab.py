@@ -103,6 +103,13 @@ def _report(_estimator, version: str, _result, result_key) -> str:
     return build_report(_estimator, _result, "données synthétiques" if synthetic else "base de l'utilisateur")
 
 
+@st.cache_data(show_spinner="Évaluation de tous les modèles et lectures (environ une minute)…")
+def _quality(_estimator, version: str) -> dict:
+    from bondalorians.analysis.quality import model_quality
+
+    return model_quality(_estimator, max_cases=1500)
+
+
 # --------------------------------------------------------------- sections
 def _sample_section(estimator, version: str, result: dict | None, mode: str) -> None:
     analysis = _sample(estimator, version)
@@ -422,6 +429,105 @@ def _comparison_section(estimator, version: str, mode: str) -> None:
            (bars + target).properties(height=280), view["findings"][2:], coverage)
 
 
+def _quality_section(estimator, version: str, mode: str) -> None:
+    from bondalorians.analysis.quality import FAIL, NA, PASS
+
+    analysis = _quality(estimator, version)
+    tables, thresholds = analysis["tables"], analysis["thresholds"]
+    indicators, tests = tables["indicateurs"], tables["tests"]
+    st.markdown("#### Comment les modèles sont testés")
+    st.caption(
+        "**Validation croisée à 5 plis.** Les obligations sont réparties en 5 groupes ; chaque groupe est estimé par "
+        "des modèles entraînés sur les 4 autres. Chaque obligation est donc estimée sans avoir servi à "
+        "l'apprentissage. **Deux situations** : « émetteur connu » (les autres obligations de l'émetteur restent "
+        "disponibles) et « émetteur inconnu » (tout l'émetteur est retiré). **Erreur** : écart relatif entre le spread "
+        "estimé et le vrai spread (en log, ≈ %). Les mêmes obligations servent à tous les modèles."
+    )
+    rules = pd.DataFrame([
+        {"Test": "Biais", "Règle": f"erreur médiane signée entre −{100 * thresholds['max_bias']:.0f} % et "
+                                   f"+{100 * thresholds['max_bias']:.0f} %",
+         "Ce qu'il vérifie": "le modèle ne surestime ni ne sous-estime systématiquement"},
+        {"Test": "Stabilité entre plis", "Règle": f"variation de l'erreur entre plis ≤ {100 * thresholds['max_fold_cv']:.0f} %",
+         "Ce qu'il vérifie": "le résultat ne dépend pas du découpage des données"},
+        {"Test": "Apport par rapport à la courbe des pairs", "Règle": "erreur plus faible que la courbe seule",
+         "Ce qu'il vérifie": "la complexité du modèle sert à quelque chose"},
+        {"Test": "Surapprentissage", "Règle": f"erreur de validation ≤ {thresholds['max_overfit_ratio']:.1f} × erreur d'apprentissage",
+         "Ce qu'il vérifie": "le modèle n'a pas appris par cœur (modèles paramétriques seulement)"},
+        {"Test": "Couverture de l'intervalle", "Règle": f"entre {100 * thresholds['coverage'][0]:.0f} et "
+                                                       f"{100 * thresholds['coverage'][1]:.0f} %",
+         "Ce qu'il vérifie": "l'intervalle à 90 % contient le vrai spread 9 fois sur 10 (estimation retenue)"},
+    ])
+    st.dataframe(rules, hide_index=True, width="stretch")
+
+    counts = tests["statut"].value_counts()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Tests réussis", int(counts.get(PASS, 0)))
+    c2.metric("Tests échoués", int(counts.get(FAIL, 0)))
+    c3.metric("Non applicables", int(counts.get(NA, 0)))
+    st.info("**À retenir**\n\n" + "\n".join(f"- {f}" for f in analysis["findings"]))
+
+    situation = st.radio("Situation", ["Émetteur connu", "Émetteur inconnu"], horizontal=True, key="quality_situation")
+    icons = {PASS: "✓", FAIL: "✗", NA: "—"}
+    grid = tests[tests["situation"] == situation].assign(
+        cellule=lambda d: d["statut"].map(icons) + " " + d["valeur"].where(d["statut"] != NA, ""))
+    pivot = grid.pivot(index="modele", columns="test", values="cellule")
+    test_order = ["Biais", "Stabilité entre plis", "Apport par rapport à la courbe des pairs", "Surapprentissage",
+                  "Couverture de l'intervalle à 90 %"]
+    order = list(dict.fromkeys(indicators["modele"]))
+    pivot = (pivot.reindex(index=[m for m in order if m in pivot.index],
+                           columns=[t for t in test_order if t in pivot.columns])
+             .fillna("—").rename_axis(index="Modèle", columns=None))
+    st.markdown(f"#### Résultat des tests · {situation.lower()}")
+    st.dataframe(pivot, width="stretch")
+    st.caption("✓ réussi · ✗ échoué · — non applicable (la raison est dans le tableau détaillé ci-dessous).")
+    with st.expander("Détail des tests, avec la règle et la raison"):
+        st.dataframe(tests[tests["situation"] == situation].drop(columns="situation").rename(columns={
+            "modele": "Modèle", "test": "Test", "statut": "Statut", "valeur": "Valeur", "regle": "Règle ou raison"}),
+            hide_index=True, width="stretch")
+
+    data = indicators.copy()
+    situations = ["Émetteur connu", "Émetteur inconnu"]
+    bars = alt.Chart(data).mark_bar(cornerRadiusEnd=3).encode(
+        y=alt.Y("modele:N", sort=order, axis=_axis(None, labelLimit=260)),
+        yOffset=alt.YOffset("situation:N", sort=situations),
+        x=alt.X("erreur_mediane_pct:Q", axis=_axis("Erreur médiane hors échantillon (%)")),
+        color=alt.Color("situation:N", sort=situations, scale=alt.Scale(domain=situations, range=SERIES[mode][:2]),
+                        legend=alt.Legend(title=None, orient="top")),
+        tooltip=[alt.Tooltip("modele:N", title="Modèle"), alt.Tooltip("situation:N", title=""),
+                 alt.Tooltip("cas:Q", title="Cas testés"),
+                 alt.Tooltip("erreur_mediane_pct:Q", title="Erreur médiane (%)", format=".1f"),
+                 alt.Tooltip("erreur_mediane_pb:Q", title="Erreur médiane (pb)", format=".1f"),
+                 alt.Tooltip("biais_pct:Q", title="Biais (%)", format=".1f"),
+                 alt.Tooltip("moins_de_10_pct:Q", title="Cas à moins de 10 %", format=".0%")])
+    _block("Erreur de chaque modèle",
+           "L'erreur médiane hors échantillon de chaque modèle et de chaque lecture de contrôle.",
+           "Plus la barre est courte, mieux c'est. La courbe des pairs sert de référence : un modèle plus complexe "
+           "qui ne fait pas mieux qu'elle n'apporte rien.", bars.properties(height=60 * len(order)), [])
+
+    folds = tables["plis"]
+    strip = alt.Chart(folds[folds["situation"] == situation]).mark_circle(size=90, opacity=0.8).encode(
+        y=alt.Y("modele:N", sort=order, axis=_axis(None, labelLimit=260)),
+        x=alt.X("erreur_mediane_pct:Q", scale=alt.Scale(zero=False), axis=_axis("Erreur médiane du pli (%)")),
+        color=alt.value(SERIES[mode][0] if situation == situations[0] else SERIES[mode][1]),
+        tooltip=[alt.Tooltip("modele:N", title="Modèle"), alt.Tooltip("pli:O", title="Pli"),
+                 alt.Tooltip("erreur_mediane_pct:Q", title="Erreur médiane (%)", format=".1f")])
+    _block(f"Stabilité d'un pli à l'autre · {situation.lower()}",
+           "Chaque point est l'erreur médiane d'un modèle sur l'un des 5 groupes d'obligations.",
+           "Des points serrés : le résultat ne dépend pas du découpage. Des points étalés : il faut se méfier du chiffre "
+           "moyen.", strip.properties(height=40 * len(order)), [])
+
+    columns = {"modele": "Modèle", "situation": "Situation", "cas": "Cas", "erreur_mediane_pct": "Erreur médiane (%)",
+               "erreur_moyenne_pct": "Erreur moyenne (%)", "erreur_mediane_pb": "Erreur médiane (pb)",
+               "biais_pct": "Biais (%)", "moins_de_5_pct": "< 5 %", "moins_de_10_pct": "< 10 %",
+               "moins_de_20_pct": "< 20 %", "r2_hors_echantillon": "R² hors échantillon (log)",
+               "variation_entre_plis": "Variation entre plis", "erreur_apprentissage_pct": "Erreur d'apprentissage (%)",
+               "ratio_validation_apprentissage": "Validation / apprentissage", "couverture_intervalle": "Couverture"}
+    with st.expander("Tous les indicateurs"):
+        st.dataframe(indicators.rename(columns=columns).round(3), hide_index=True, width="stretch")
+        st.caption("< 5 %, < 10 %, < 20 % : part des estimations dont l'erreur est sous ce seuil. R² : part de la "
+                   "dispersion des spreads (en log) que le modèle explique hors échantillon.")
+
+
 def _clustering_section(estimator, version: str, result: dict | None, mode: str) -> None:
     st.markdown("#### Familles d'obligations (clustering)")
     st.caption(
@@ -578,7 +684,8 @@ def render(service, result: dict | None) -> None:
             st.download_button("Télécharger le rapport (.md)", st.session_state["llm_report"],
                                file_name="analyses_bondalorians.md", mime="text/markdown")
     section = st.segmented_control(
-        "Partie", ["Échantillon", "Modèles un par un", "Comparaison et confiance", "Clustering"],
+        "Partie", ["Échantillon", "Modèles un par un", "Comparaison et confiance", "Qualité et validation",
+                   "Clustering"],
         default="Échantillon", required=True, key="analysis_section", label_visibility="collapsed")
     if section != "Échantillon" and importlib.util.find_spec("sklearn") is None:
         # scikit-learn manque dans le Python qui fait tourner l'interface : on donne la
@@ -596,5 +703,7 @@ def render(service, result: dict | None) -> None:
         _models_section(estimator, version, result, mode)
     elif section == "Comparaison et confiance":
         _comparison_section(estimator, version, mode)
+    elif section == "Qualité et validation":
+        _quality_section(estimator, version, mode)
     elif section == "Clustering":
         _clustering_section(estimator, version, result, mode)

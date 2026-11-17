@@ -42,7 +42,8 @@ Règles :
 Réponds, dans cet ordre :
 1. Que dit l'échantillon, et qu'est-ce qui détermine le niveau des spreads ?
 2. Quel modèle est le plus fiable, dans quels cas, et l'apprentissage automatique apporte-t-il quelque chose ?
-3. Le score de confiance et l'intervalle à 90 % sont-ils dignes de confiance ?
+3. Le score de confiance et l'intervalle à 90 % sont-ils dignes de confiance ? Que disent les tests de
+   la section 6 (biais, stabilité, apport, surapprentissage, couverture) ?
 4. Le clustering révèle-t-il une vraie structure, ou seulement un découpage de lecture ?
 5. Si une obligation est décrite en fin de document : comment se situe-t-elle, et avec quelle confiance ?
 6. Les trois faiblesses principales du système, et ce qu'il faudrait vérifier sur les données réelles."""
@@ -96,7 +97,8 @@ def _findings(analysis: dict) -> str:
 
 
 def build_report(estimator, result: dict | None = None, source: str = "",
-                 include_forest: bool = True, methods=tuple(METHODS)) -> str:
+                 include_forest: bool = True, methods=tuple(METHODS), include_quality: bool = True,
+                 quality_cases: int | None = 1500) -> str:
     """Rapport complet. `result` : estimation à situer (facultatif)."""
     if estimator.calibration_ is None:
         raise RuntimeError("Estimateur non calibré : le rapport a besoin du backtest.")
@@ -246,7 +248,7 @@ def build_report(estimator, result: dict | None = None, source: str = "",
             "",
             "### Lecture descendante (contrôle)",
             "",
-            f"- {fmt(result['top_down']['z_spread_bp'])} pb ; niveau : {result['top_down']['level_name']} ; "
+            f"- {fmt(result['top_down']['z_spread_bp'])} pb ; groupe : {result['top_down']['level_name']} ; "
             f"{result['top_down']['method']} ; écart de {fmt(result['top_down']['gap_pct'], 1)} % avec l'estimation.",
             "",
             md_table(pd.DataFrame(result["top_down"]["points"]), {
@@ -278,6 +280,32 @@ def build_report(estimator, result: dict | None = None, source: str = "",
                           if placement.get("percentile") is not None else "")
                        + (" ; obligation isolée de l'échantillon" if placement.get("isolee") else "") + ".")
         out += ["", "### Réserves de l'estimation", "", "\n".join(f"- {c}" for c in result["caveats"]), ""]
+
+    if include_quality:
+        from bondalorians.analysis.quality import model_quality
+
+        quality = model_quality(estimator, include_forest=include_forest, max_cases=quality_cases)
+        indicators = quality["tables"]["indicateurs"].assign(
+            moins_de_10_pct=lambda d: 100 * d["moins_de_10_pct"], variation_entre_plis=lambda d: 100 * d["variation_entre_plis"])
+        out += [
+            "## 6. Qualité des modèles et validation",
+            "",
+            _findings(quality),
+            "",
+            "### Indicateurs hors échantillon",
+            "",
+            md_table(indicators, {
+                "modele": "Modèle", "situation": "Situation", "cas": "Cas", "erreur_mediane_pct": "Erreur médiane (%)",
+                "erreur_mediane_pb": "Erreur médiane (pb)", "biais_pct": "Biais (%)", "moins_de_10_pct": "Cas < 10 % (%)",
+                "variation_entre_plis": "Variation entre plis (%)",
+                "ratio_validation_apprentissage": "Validation / apprentissage"}),
+            "",
+            "### Tests",
+            "",
+            md_table(quality["tables"]["tests"], {"modele": "Modèle", "situation": "Situation", "test": "Test",
+                                                  "statut": "Statut", "valeur": "Valeur", "regle": "Règle ou raison"}),
+            "",
+        ]
 
     out += [
         "## Limites connues du système",

@@ -59,7 +59,53 @@ contrôle et de correction.
 | Le score de confiance tient-il ses promesses ? | Le score distingue-t-il les cas faciles des difficiles ? | La courbe bleue doit monter de gauche à droite. |
 | L'intervalle à 90 % … | L'intervalle est-il honnête ? | Les barres doivent être au niveau de la ligne de 90 %. |
 
-## Partie 4 : Clustering
+## Partie 4 : Qualité et validation
+
+Cette partie dit si chaque modèle est fiable, avec des tests réussis ou
+échoués.
+
+**Comment les modèles sont testés.** Les obligations sont réparties en
+5 groupes ; chaque groupe est estimé par des modèles entraînés sur les
+4 autres. Deux situations : émetteur connu (ses autres obligations restent
+disponibles) et émetteur inconnu (tout l'émetteur est retiré). Tous les
+modèles sont testés sur les mêmes obligations.
+
+| Indicateur | Sens |
+|---|---|
+| Erreur médiane (%, pb) | La moitié des estimations se trompent de moins que ce chiffre |
+| Biais | Erreur médiane avec son signe : positive, le modèle surestime |
+| Cas < 5 %, < 10 %, < 20 % | Part des estimations dont l'erreur est sous ce seuil |
+| R² hors échantillon | Part de la dispersion des spreads expliquée sur des obligations non vues |
+| Variation entre plis | Écart relatif de l'erreur d'un groupe d'obligations à l'autre |
+| Validation / apprentissage | Erreur hors échantillon divisée par l'erreur sur les données d'entraînement |
+
+| Test | Règle | Ce qu'il vérifie |
+|---|---|---|
+| Biais | entre −2 % et +2 % | pas de surestimation ni sous-estimation systématique |
+| Stabilité entre plis | variation ≤ 15 % | le résultat ne dépend pas du découpage |
+| Apport | erreur plus faible que la courbe des pairs | la complexité sert à quelque chose |
+| Surapprentissage | validation ≤ 1,3 × apprentissage | le modèle n'a pas appris par cœur |
+| Couverture | entre 85 et 95 % | l'intervalle à 90 % est honnête (estimation retenue) |
+
+Le test de surapprentissage n'est appliqué qu'aux modèles paramétriques
+(courbe des pairs, CatBoost, forêt aléatoire). Pour le modèle A et les
+lectures de contrôle, qui s'appuient sur les autres obligations, l'erreur
+d'apprentissage n'a pas de sens : l'obligation serait son propre comparable.
+Les seuils sont dans `config/settings.yaml` (section `quality`).
+
+En ligne de commande :
+
+    python scripts/qualite.py
+
+Résultat sur les données synthétiques réalistes : 40 tests réussis, 11 échoués.
+Les échecs les plus parlants :
+- l'estimation retenue ne fait pas mieux que la courbe des pairs pour un
+  émetteur inconnu (−1,1 %) : la marge de 5 % garde le modèle A ;
+- CatBoost sous-estime systématiquement d'environ 4 % (biais) ;
+- la forêt aléatoire surapprend (erreur de validation 1,5 fois l'erreur
+  d'apprentissage).
+
+## Partie 5 : Clustering
 
 Le clustering regroupe les obligations qui se ressemblent par leurs
 caractéristiques. **Il n'estime pas le spread** : il aide à lire l'échantillon
@@ -148,6 +194,7 @@ graphiques :
 | `analyze_comparables` | Les comparables d'une estimation (`run_id`) |
 | `analyze_clusters` | Familles selon `method` (`kmeans`, `ward`, `gmm`, `hdbscan`), avec placement de l'obligation si `run_id` est donné |
 | `analysis_report` | Le rapport Markdown complet ci-dessus |
+| `model_quality` | Indicateurs et tests de chaque modèle |
 
 Chaque réponse contient une liste `findings` : des phrases en français dont
 tous les chiffres sont calculés. L'agent peut les reformuler, mais ne doit pas
