@@ -20,9 +20,10 @@ from bondalorians.analysis.sample import describe_sample
 MODEL_LABELS = {
     "courbe_pairs_bp": "courbe des pairs", "A_comparables_bp": "A", "B_catboost_bp": "B (CatBoost)",
     "C_comparables_corriges_bp": "C (comparables corrigés)", "top_down_bp": "lecture descendante",
+    "S_ancrage_senior_bp": "S (ancrage senior)",
 }
 CHAMPION_LABELS = {"A": "A (comparables)", "B": "B (CatBoost)", "C": "C (comparables corrigés)",
-                   "P": "courbe des pairs seule"}
+                   "P": "courbe des pairs seule", "S": "S (ancrage sur la dette senior)"}
 
 INSTRUCTIONS = """Tu es analyste crédit et data scientist. Tu expliques ces résultats à un gérant de portefeuille
 qui n'est pas spécialiste des données. Le système estime le Z-Spread juste d'une obligation à partir d'un
@@ -246,6 +247,17 @@ def build_report(estimator, result: dict | None = None, source: str = "",
             f"- Modèle retenu : {CHAMPION_LABELS[result['champion']]}. Estimations des modèles (pb) : "
             + ", ".join(f"{MODEL_LABELS[k]} {fmt(v)}" for k, v in result["models"].items() if v is not None) + ".",
             "",
+            *([
+                "### Dette subordonnée : ancrage sur la dette senior de l'émetteur",
+                "",
+                f"- Dette senior de l'émetteur ({result['subordination']['senior_bonds']} obligation(s)) ramenée au "
+                f"profil de la cible : {fmt(result['subordination']['senior_equivalent_bp'])} pb.",
+                f"- Prime de subordination : {fmt(result['subordination']['premium_pct'], 1)} % "
+                f"({result['subordination']['premium_source']}) ; prime moyenne du marché selon la courbe des pairs : "
+                f"{fmt(result['subordination']['generic_premium_pct'], 1)} %.",
+                f"- Estimation ancrée (S) : {fmt(result['subordination']['anchor_bp'])} pb.",
+                "",
+            ] if result.get("subordination") else []),
             "### Lecture descendante (contrôle)",
             "",
             f"- {fmt(result['top_down']['z_spread_bp'])} pb ; groupe : {result['top_down']['level_name']} ; "

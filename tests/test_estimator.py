@@ -88,7 +88,7 @@ def test_uncalibrated_estimator_gives_point_estimate_only(universe, settings):
 @pytest.mark.skipif(not catboost_available(), reason="catboost non installé")
 def test_catboost_models(universe, settings, new_bond):
     estimator = ZSpreadEstimator(settings, use_ml=True).fit(universe, calibrate=False)
-    # Modèle B : monotone en notation.
+    # Modèle B : monotone en notation (la contrainte est désactivée ; la propriété reste vérifiée).
     spreads = [estimator.estimate({**new_bond, "rating": r})["models"]["B_catboost_bp"]
                for r in ("AA", "A", "BBB", "BB", "B")]
     assert spreads == sorted(spreads)
@@ -105,6 +105,6 @@ def test_ml_champion_needs_a_clear_margin(universe, settings):
     settings["calibration"]["champion_margin"] = 0.99  # aucun modèle ML ne peut gagner
     estimator = ZSpreadEstimator(settings, use_ml=True).fit(small)
     assert set(estimator.calibration_["champion"].values()) == {"A"}
-    assert estimator.calibration_["available_models"] == ["A", "B", "C", "P"]
+    assert estimator.calibration_["available_models"] == ["A", "B", "C", "P", "S"]
     columns = estimator.backtest_summary()[0]
     assert "mae_bp_C_comparables_corriges" in columns and "mae_bp_B_catboost" in columns

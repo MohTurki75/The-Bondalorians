@@ -187,9 +187,37 @@ réglage. Les poids appris changent beaucoup d'un jeu de données à l'autre.
   catégories secteur, pays, devise, type de coupon et séniorité.
 - **L'émetteur n'est pas une variable**, pour généraliser à un émetteur
   inconnu.
-- **Monotonie** : le spread prédit ne baisse jamais quand la notation ou le
-  rang de séniorité se dégrade.
+- **Pas de contrainte de monotonie** : mesurée, elle créait un biais de −4 %
+  et 7 % d'erreur en plus (option `ml.monotone`).
 - **Réglages** : 300 itérations, profondeur 5, taux d'apprentissage 0,08.
+
+### 4.3 bis Modèle S : dette subordonnée ancrée sur la dette senior
+
+**Dette subordonnée ancrée sur la dette senior (candidat S).** Quand une dette
+subordonnée (non préférée, Tier 2, subordonnée, AT1, hybride) a un émetteur qui
+possède aussi de la dette senior :
+
+1. les obligations senior de l'émetteur (de préférence dans la même devise) sont
+   ramenées au profil de la cible par la courbe des pairs ; leur écart moyen
+   donne le niveau senior de l'émetteur, rétréci comme l'écart émetteur
+   (n / (n + k)) ;
+2. la prime de subordination est mesurée **à l'intérieur des émetteurs** qui ont
+   les deux types de dette (écart entre leur dette subordonnée et leur dette
+   senior, toutes autres choses égales), puis régressée sur la catégorie de
+   séniorité et la notation. La mesurer à l'intérieur d'un émetteur évite de la
+   confondre avec la qualité des émetteurs qui émettent de la dette subordonnée.
+
+Estimation S = courbe des pairs « en senior » + niveau senior de l'émetteur +
+prime mesurée. S concourt comme les autres modèles (marge de 5 % sur A).
+
+**Contrôle de subordination.** L'estimation est comparée à la dette senior du
+même émetteur ramenée à la maturité et à la devise de la cible, avec la
+notation des obligations senior. Une médiane brute, comme auparavant, mélangeait
+des maturités et des notations différentes et pouvait déclencher de fausses
+alertes.
+
+Sur le profil réaliste, palier complexe : S 112,3 pb contre A 115,6 pb
+(−2,9 %, sous la marge, A reste retenu).
 
 ### 4.4 Modèle C : modèle A corrigé par CatBoost
 
@@ -396,7 +424,8 @@ la forêt aléatoire surapprend (× 1,5).
 3. **Dette subordonnée** (palier complexe). C'est le palier le plus faible
    (plus de 100 pb d'erreur médiane sur le profil réaliste) ; aucune
    modélisation propre des options de remboursement ou de l'extension des
-   AT1. La prime de séniorité selon la notation l'a réduite de 20 %.
+   AT1. La prime de séniorité selon la notation l'a réduite de 20 % ;
+   l'ancrage sur la dette senior de l'émetteur (S) gagne encore 3 %.
 4. **Option de remboursement anticipé.** Une simple indicatrice : pas d'OAS,
    pas de maturité au « call ».
 5. **Score de confiance.** Il classe mieux les cas qu'avant (corrélation de

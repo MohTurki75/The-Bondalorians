@@ -36,9 +36,40 @@ MODELS = {  # colonne -> (libellé, paramétrique ?)
     "log_a": ("Modèle A", False),
     "log_b": ("CatBoost (B)", True),
     "log_c": ("A corrigé (C)", False),
+    "log_s": ("Ancrage senior (S)", False),
     "log_rf": ("Forêt aléatoire", True),
 }
 PASS, FAIL, NA = "réussi", "échoué", "non applicable"
+
+
+def honest_coverage(data: pd.DataFrame, cal: dict, seed: int = 5) -> float:
+    """Couverture de l'intervalle mesurée sur des obligations qui n'ont pas servi à le calibrer.
+
+    L'intervalle est calibré sur les erreurs hors échantillon ; mesurer sa couverture sur
+    ces mêmes erreurs donne presque 90 % par construction. Ici, les émetteurs sont coupés
+    en deux moitiés : les quantiles sont recalculés sur l'une, la couverture est mesurée
+    sur l'autre, puis l'inverse.
+    """
+    from bondalorians.quant.conformal import conformal_quantile
+
+    issuers = data["issuer"].to_numpy()
+    unique = np.unique(issuers)
+    rng = np.random.default_rng(seed)
+    half_of = dict(zip(unique, rng.permutation(len(unique)) % 2))
+    halves = np.array([half_of[i] for i in issuers])
+    scores = (data["err"] / data["sigma"]).to_numpy() if cal["adaptive"] else data["err"].to_numpy()
+    alpha = cal["alpha"]
+    covered = np.zeros(len(data), dtype=bool)
+    keys = data["key"].to_numpy()
+    for h in (0, 1):
+        calib, test = halves != h, halves == h
+        global_q = conformal_quantile(scores[calib], alpha)
+        for key in np.unique(keys[test]):
+            in_key = calib & (keys == key)
+            q = conformal_quantile(scores[in_key], alpha) if in_key.sum() >= 50 else global_q
+            mask = test & (keys == key)
+            covered[mask] = scores[mask] <= q
+    return float(covered.mean())
 
 
 def _fold_ids(estimator) -> pd.DataFrame:
@@ -79,7 +110,8 @@ def model_quality(estimator, include_forest: bool = True, readers=("Descendante 
     thresholds = {**DEFAULT_THRESHOLDS, **estimator.settings.get("quality", {})}
     oof = cal["oof"].copy()
     oof = oof.merge(_fold_ids(estimator), on=["row_id", "scheme"], how="left")
-    champion_column = {"A": "log_a", "B": "log_b", "C": "log_c", "P": "peer_log"}
+    oof["issuer"] = estimator.df_["issuer"].to_numpy()[oof["row_id"].to_numpy()]
+    champion_column = {"A": "log_a", "B": "log_b", "C": "log_c", "P": "peer_log", "S": "log_s"}
     oof["log_retenu"] = [
         float(row[champion_column[cal["champion"].get(row["key"], "A")]]) for _, row in oof.iterrows()
     ]
@@ -136,7 +168,7 @@ def model_quality(estimator, include_forest: bool = True, readers=("Descendante 
                               "statut": status, "valeur": value, "regle": rule})
 
             add("Biais", PASS if abs(row["biais_pct"]) <= 100 * thresholds["max_bias"] else FAIL,
-                f"{fmt(row['biais_pct'], 1)} %", f"|biais| ≤ {fmt(100 * thresholds['max_bias'])} %")
+                f"{fmt(row['biais_pct'], 1)} %", f"valeur absolue du biais ≤ {fmt(100 * thresholds['max_bias'])} %")
             add("Stabilité entre plis", PASS if cv <= thresholds["max_fold_cv"] else FAIL,
                 f"{fmt(100 * cv)} %", f"variation ≤ {fmt(100 * thresholds['max_fold_cv'])} %")
             if column == "peer_log":
@@ -154,14 +186,12 @@ def model_quality(estimator, include_forest: bool = True, readers=("Descendante 
                     "émetteur inconnu : pas d'équivalent en apprentissage" if parametric
                     else "méthode à mémoire : en apprentissage, l'obligation serait son propre comparable")
             if column == "log_retenu":
-                q = cal["quantile"]
-                half = [q.get(k, q["_global"]) * s if cal["adaptive"] else q.get(k, q["_global"])
-                        for k, s in zip(data["key"], data["sigma"])]
-                coverage = float((data["err"] <= np.array(half)).mean())
+                coverage = honest_coverage(data, cal, seed)
                 low, high = thresholds["coverage"]
                 row["couverture_intervalle"] = coverage
                 add("Couverture de l'intervalle à 90 %", PASS if low <= coverage <= high else FAIL,
-                    pct(coverage, 1), f"entre {fmt(100 * low)} et {fmt(100 * high)} %")
+                    pct(coverage, 1), f"entre {fmt(100 * low)} et {fmt(100 * high)} %, mesurée sur des émetteurs "
+                                      "non utilisés pour calibrer l'intervalle")
 
     indicators = pd.DataFrame(indicators)
     tests = pd.DataFrame(tests)

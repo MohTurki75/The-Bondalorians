@@ -27,7 +27,7 @@ DEFAULTS: dict = {
     "peer_curve": {"ridge": 0.01, "enriched": True},
     "ml": {
         "iterations": 300, "depth": 5, "learning_rate": 0.08,
-        "corrector": True, "corrector_iterations": 200, "corrector_depth": 4,
+        "monotone": False, "corrector": True, "corrector_iterations": 200, "corrector_depth": 4,
     },
     "calibration": {"alpha": 0.10, "n_folds": 5, "min_per_key": 50, "seed": 7, "adaptive": True,
         "champion_margin": 0.05,
@@ -39,6 +39,7 @@ DEFAULTS: dict = {
     "analysis": {"clustering_reading_k": 4},
     "top_down": {"reader": "Entonnoir avec maturité", "max_gap": 0.25},
     "funnel": {"min_basket": 150},
+    "subordination": {"enabled": True, "shrink": True},
 }
 
 

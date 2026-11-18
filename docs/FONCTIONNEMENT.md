@@ -165,9 +165,33 @@ CatBoost donne une estimation indépendante (B) et une correction du modèle A (
 ### 7. Choix du chiffre final
 
 Le champion du palier donne l'estimation. Les candidats sont le modèle A,
-les modèles CatBoost B et C, et la courbe des pairs seule (P) ; un candidat
-doit faire au moins 5 % mieux que A pour le remplacer. L'écart entre A et B
-alimente un contrôle : au-delà de 25 %, le cas est signalé.
+les modèles CatBoost B et C, la courbe des pairs seule (P) et l'ancrage
+senior de la dette subordonnée (S) ; un candidat doit faire au moins 5 % mieux
+que A pour le remplacer. L'écart entre A et B alimente un contrôle : au-delà
+de 25 %, le cas est signalé.
+
+**Dette subordonnée ancrée sur la dette senior (candidat S).** Quand une dette
+subordonnée (non préférée, Tier 2, subordonnée, AT1, hybride) a un émetteur qui
+possède aussi de la dette senior :
+
+1. les obligations senior de l'émetteur (de préférence dans la même devise) sont
+   ramenées au profil de la cible par la courbe des pairs ; leur écart moyen
+   donne le niveau senior de l'émetteur, rétréci comme l'écart émetteur
+   (n / (n + k)) ;
+2. la prime de subordination est mesurée **à l'intérieur des émetteurs** qui ont
+   les deux types de dette (écart entre leur dette subordonnée et leur dette
+   senior, toutes autres choses égales), puis régressée sur la catégorie de
+   séniorité et la notation. La mesurer à l'intérieur d'un émetteur évite de la
+   confondre avec la qualité des émetteurs qui émettent de la dette subordonnée.
+
+Estimation S = courbe des pairs « en senior » + niveau senior de l'émetteur +
+prime mesurée. S concourt comme les autres modèles (marge de 5 % sur A).
+
+**Contrôle de subordination.** L'estimation est comparée à la dette senior du
+même émetteur ramenée à la maturité et à la devise de la cible, avec la
+notation des obligations senior. Une médiane brute, comme auparavant, mélangeait
+des maturités et des notations différentes et pouvait déclencher de fausses
+alertes.
 
 ### 7 bis. Lecture de contrôle : la méthode de l'entonnoir
 
@@ -300,6 +324,28 @@ Erreur médiane hors échantillon (`python scripts/ablation.py --topdown`) :
   fois les poids des comparables réglés : sous la marge de 5 %, elle n'est pas
   retenue. Sans réglage des poids, l'écart était de 6 % et elle l'était. La
   candidature reste active pour les données réelles.
+
+### Dette subordonnée, CatBoost et couverture (profil réaliste)
+
+Erreur médiane du palier complexe (dette subordonnée) : modèle A 115,6 pb,
+ancrage senior S 112,3 pb, soit 2,9 % de mieux, sous la marge de 5 % : A reste
+retenu sur ces données. Sur des données où l'émetteur pèse peu (k élevé), S
+peut l'emporter ; le backtest en décide.
+
+Diagnostic de CatBoost B (erreur médiane et biais médian hors échantillon) :
+
+| Réglage | Émetteur connu | Biais | Émetteur inconnu | Biais |
+|---|---|---|---|---|
+| Avec monotonie (ancien) | 13,2 % | −4,2 % | 15,1 % | −4,4 % |
+| Sans monotonie (actuel) | 12,3 % | +0,6 % | 14,9 % | +0,3 % |
+| 1 000 itérations, sans monotonie | 11,9 % | +0,8 % | 14,9 % | +0,6 % |
+
+La contrainte de monotonie créait une sous-estimation systématique ; plus
+d'itérations n'apporte presque rien. Elle est désactivée par défaut
+(`ml.monotone`).
+
+Couverture de l'intervalle à 90 %, mesurée sur des émetteurs qui n'ont pas
+servi à le calibrer : 89,6 à 90,5 % selon le palier.
 
 ### Entonnoir (profil réaliste, tous les cas du backtest)
 

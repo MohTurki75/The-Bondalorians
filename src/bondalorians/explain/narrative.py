@@ -11,6 +11,7 @@ MODEL_NAMES = {
     "B": "CatBoost indépendant",
     "C": "comparables corrigés par CatBoost",
     "P": "courbe des pairs seule",
+    "S": "dette senior de l'émetteur plus prime de subordination",
 }
 
 STANDING_CAVEATS = [
@@ -58,6 +59,12 @@ def build_narrative(result: dict) -> str:
         "Principaux écarts à l'obligation moyenne : "
         + " ; ".join(f"{s['step']} {s['delta_bp']:+.0f} pb" for s in drivers) + "."
     )
+    senior = result.get("subordination")
+    if senior:
+        lines.append(
+            f"Dette subordonnée : la dette senior de l'émetteur, ramenée à ce profil, vaut {senior['senior_equivalent_bp']:.0f} pb ; "
+            f"avec une prime de subordination de {senior['premium_pct']:+.0f} %, l'ancrage donne {senior['anchor_bp']:.0f} pb."
+        )
     reading = result.get("top_down")
     if reading:
         lines.append(

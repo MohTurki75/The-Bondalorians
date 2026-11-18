@@ -1,6 +1,6 @@
 # Analyses de l'échantillon et des modèles
 
-- Généré le : 2026-11-16 20:49 UTC
+- Généré le : 2026-11-18 23:11 UTC
 - Source : données synthétiques
 - Obligations : 4 000 ; version du modèle : `0.1.0-4000-3f1029c103`
 - CatBoost : actif ; forêt aléatoire : incluse
@@ -25,7 +25,8 @@ Règles :
 Réponds, dans cet ordre :
 1. Que dit l'échantillon, et qu'est-ce qui détermine le niveau des spreads ?
 2. Quel modèle est le plus fiable, dans quels cas, et l'apprentissage automatique apporte-t-il quelque chose ?
-3. Le score de confiance et l'intervalle à 90 % sont-ils dignes de confiance ?
+3. Le score de confiance et l'intervalle à 90 % sont-ils dignes de confiance ? Que disent les tests de
+   la section 6 (biais, stabilité, apport, surapprentissage, couverture) ?
 4. Le clustering révèle-t-il une vraie structure, ou seulement un découpage de lecture ?
 5. Si une obligation est décrite en fin de document : comment se situe-t-elle, et avec quelle confiance ?
 6. Les trois faiblesses principales du système, et ce qu'il faudrait vérifier sur les données réelles.
@@ -118,20 +119,20 @@ Nombre maximal de comparables : 40 ; largeur du noyau : 0,74.
 ### CatBoost (modèle B)
 
 - Effet moyen = de combien, en moyenne, une variable déplace le spread prédit d'une obligation par rapport à l'obligation moyenne.
-- Les trois variables les plus utilisées : notation (67 %), rang de séniorité (15 %), maturité (14 %).
-- Effet de la notation seule : -85 % en AAA, 1 015 % en CCC-. La contrainte de monotonie garantit que, pour une obligation donnée, dégrader la notation ne baisse jamais le spread prédit ; les moyennes par notation peuvent légèrement fluctuer là où les obligations sont rares.
+- Les trois variables les plus utilisées : notation (68 %), rang de séniorité (18 %), maturité (14 %).
+- Effet de la notation seule : -85 % en AAA, 1 217 % en CCC-. La contrainte de monotonie garantit que, pour une obligation donnée, dégrader la notation ne baisse jamais le spread prédit ; les moyennes par notation peuvent légèrement fluctuer là où les obligations sont rares.
 
 | Variable | Effet moyen sur le spread (%) |
 |---|---|
-| Notation | 66,9 |
-| Rang de séniorité | 14,8 |
-| Maturité | 13,9 |
-| Secteur | 6,5 |
-| Taille | 3,0 |
-| Pays | 2,4 |
-| Séniorité (catégorie) | 2,3 |
-| Remboursable | 2,2 |
-| Devise | 2,1 |
+| Notation | 67,6 |
+| Rang de séniorité | 17,6 |
+| Maturité | 14,2 |
+| Secteur | 6,7 |
+| Pays | 3,3 |
+| Taille | 2,9 |
+| Remboursable | 2,4 |
+| Devise | 2,2 |
+| Séniorité (catégorie) | 1,2 |
 | Type de coupon | 0,1 |
 
 ### Correcteur (modèle C)
@@ -168,12 +169,12 @@ Nombre maximal de comparables : 40 ; largeur du noyau : 0,74.
 
 ### Erreur médiane hors échantillon (pb), par palier et par modèle
 
-| Palier | Obligations testées | A · Comparables | B · CatBoost | C · Comparables corrigés | Courbe des pairs | Forêt aléatoire |
-|---|---|---|---|---|---|---|
-| Complexe | 410 | 116 | 134 | 118 | 122 | 134 |
-| Intermédiaire | 1 818 | 14,2 | 19,3 | 14,3 | 19,4 | 19,9 |
-| Simple | 1 262 | 11,1 | 18,4 | 10,2 | 21,3 | 15,8 |
-| Émetteur inconnu | 3 600 | 24,8 | 24,6 | 25,0 | 24,1 | 28,0 |
+| Palier | Obligations testées | A · Comparables | B · CatBoost | C · Comparables corrigés | Courbe des pairs | Forêt aléatoire | S · Ancrage senior |
+|---|---|---|---|---|---|---|---|
+| Complexe | 410 | 116 | 124 | 118 | 122 | 134 | 112 |
+| Intermédiaire | 1 818 | 14,2 | 18,6 | 14,3 | 19,4 | 19,9 | 14,5 |
+| Simple | 1 262 | 11,1 | 18,6 | 10,2 | 21,3 | 15,8 | 10,8 |
+| Émetteur inconnu | 3 600 | 24,8 | 25,4 | 25,0 | 24,1 | 28,0 | 24,8 |
 
 - Erreur médiane = la moitié des obligations sont estimées avec une erreur plus faible. Chaque obligation est estimée sans avoir servi à l'apprentissage.
 - Complexe : meilleur modèle C · Comparables corrigés (117,8 pb).
@@ -188,28 +189,28 @@ Nombre maximal de comparables : 40 ; largeur du noyau : 0,74.
 | Tranche (1 = plus facile) | Erreur prévue (%) | Erreur réalisée (%) |
 |---|---|---|
 | 1 | 5,2 | 5,5 |
-| 2 | 6,4 | 7,6 |
-| 3 | 7,4 | 9,1 |
-| 4 | 8,7 | 9,3 |
+| 2 | 6,3 | 7,8 |
+| 3 | 7,4 | 8,9 |
+| 4 | 8,6 | 9,6 |
 | 5 | 9,8 | 11,9 |
 | 6 | 10,5 | 13,2 |
-| 7 | 11,1 | 13,6 |
+| 7 | 11,1 | 13,7 |
 | 8 | 11,8 | 14,4 |
-| 9 | 12,8 | 17,2 |
+| 9 | 12,8 | 17,5 |
 | 10 | 14,9 | 20,6 |
 
 ### Intervalle à 90 % : couverture par palier
 
 | Palier | Obligations | Couverture (%) | Largeur médiane (%) |
 |---|---|---|---|
-| Complexe | 410 | 90,2 | 93,3 |
-| Émetteur inconnu | 3 600 | 90,0 | 70,3 |
-| Intermédiaire | 1 818 | 90,1 | 47,7 |
-| Simple | 1 262 | 90,1 | 39,2 |
+| Complexe | 410 | 90,5 | 94,0 |
+| Émetteur inconnu | 3 600 | 90,1 | 70,2 |
+| Intermédiaire | 1 818 | 89,6 | 47,6 |
+| Simple | 1 262 | 90,2 | 39,2 |
 
 - Les 10 % de cas jugés les plus faciles ont une erreur médiane de 5,5 % ; les 10 % les plus difficiles, 20,6 %.
 - Le classement par difficulté est utile (corrélation de rang 0,34 entre difficulté prévue et erreur réalisée).
-- Couverture visée : 90 %. Obtenue : complexe 90 %, émetteur inconnu 90 %, intermédiaire 90 %, simple 90 %.
+- Couverture visée : 90 %. Obtenue, sur des émetteurs non utilisés pour calibrer l'intervalle : complexe 90 %, émetteur inconnu 90 %, intermédiaire 90 %, simple 90 %.
 
 ## 4. Clustering
 
@@ -247,7 +248,7 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 - Les familles expliquent 55 % de la dispersion des spreads, contre 79 % pour la lettre de notation seule, et 88 % pour les deux combinées.
 - Accord avec les autres méthodes (indice de Rand ajusté, 1 = identiques, 0 = hasard) : hiérarchique (ward) 0,47, mélange gaussien 0,01, hdbscan (densité) 0,00.
 - La carte montre 59 % de l'information : l'axe horizontal résume surtout notation et séniorité, l'axe vertical maturité et séniorité. Deux points proches sur la carte peuvent être éloignés en réalité.
-- Votre obligation appartient à la famille F3 (A · 7 ans · multi-secteurs, 1310 obligations, spread médian 101 pb). Son estimation de 93 pb est au-dessus de 43 % de sa famille.
+- Votre obligation appartient à la famille F4 (BB · 6 ans · multi-secteurs · subordonnée, 471 obligations, spread médian 724 pb). Son estimation de 1 246 pb est au-dessus de 72 % de sa famille.
 
 | Famille | Description | Obligations | Émetteurs | Notation médiane | Maturité médiane (ans) | Secteur principal | Spread 25e centile | Spread médian | Spread 75e centile |
 |---|---|---|---|---|---|---|---|---|---|
@@ -263,7 +264,7 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 - Les familles expliquent 49 % de la dispersion des spreads, contre 79 % pour la lettre de notation seule, et 86 % pour les deux combinées.
 - Accord avec les autres méthodes (indice de Rand ajusté, 1 = identiques, 0 = hasard) : k-means 0,47, mélange gaussien 0,02, hdbscan (densité) 0,01.
 - La carte montre 59 % de l'information : l'axe horizontal résume surtout notation et séniorité, l'axe vertical maturité et séniorité. Deux points proches sur la carte peuvent être éloignés en réalité.
-- Votre obligation appartient à la famille F1 (A · 6 ans · multi-secteurs, 1670 obligations, spread médian 103 pb). Son estimation de 93 pb est au-dessus de 42 % de sa famille.
+- Votre obligation appartient à la famille F2 (BB · 6 ans · multi-secteurs · subordonnée, 588 obligations, spread médian 617 pb). Son estimation de 1 246 pb est au-dessus de 76 % de sa famille.
 
 | Famille | Description | Obligations | Émetteurs | Notation médiane | Maturité médiane (ans) | Secteur principal | Spread 25e centile | Spread médian | Spread 75e centile |
 |---|---|---|---|---|---|---|---|---|---|
@@ -279,7 +280,7 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 - Les familles expliquent 0 % de la dispersion des spreads, contre 79 % pour la lettre de notation seule, et 79 % pour les deux combinées.
 - Accord avec les autres méthodes (indice de Rand ajusté, 1 = identiques, 0 = hasard) : k-means 0,01, hiérarchique (ward) 0,02, hdbscan (densité) 0,08.
 - La carte montre 59 % de l'information : l'axe horizontal résume surtout notation et séniorité, l'axe vertical maturité et séniorité. Deux points proches sur la carte peuvent être éloignés en réalité.
-- Votre obligation appartient à la famille F4 (BBB · 6 ans · multi-secteurs, 555 obligations, spread médian 220 pb). Son estimation de 93 pb est au-dessus de 20 % de sa famille.
+- Votre obligation appartient à la famille F3 (BBB · 6 ans · multi-secteurs, 1304 obligations, spread médian 172 pb). Son estimation de 1 246 pb est au-dessus de 96 % de sa famille.
 
 | Famille | Description | Obligations | Émetteurs | Notation médiane | Maturité médiane (ans) | Secteur principal | Spread 25e centile | Spread médian | Spread 75e centile |
 |---|---|---|---|---|---|---|---|---|---|
@@ -295,7 +296,7 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 - Les familles expliquent 13 % de la dispersion des spreads, contre 79 % pour la lettre de notation seule, et 83 % pour les deux combinées.
 - Accord avec les autres méthodes (indice de Rand ajusté, 1 = identiques, 0 = hasard) : k-means 0,00, hiérarchique (ward) 0,01, mélange gaussien 0,08.
 - La carte montre 59 % de l'information : l'axe horizontal résume surtout notation et séniorité, l'axe vertical maturité et séniorité. Deux points proches sur la carte peuvent être éloignés en réalité.
-- Votre obligation appartient à la famille F15 (BBB · 6 ans · Télécoms, 186 obligations, spread médian 150 pb). Son estimation de 93 pb est au-dessus de 32 % de sa famille.
+- Votre obligation appartient à la famille F1 (BB · 6 ans · multi-secteurs · subordonnée, 127 obligations, spread médian 629 pb). Son estimation de 1 246 pb est au-dessus de 89 % de sa famille.
 
 | Famille | Description | Obligations | Émetteurs | Notation médiane | Maturité médiane (ans) | Secteur principal | Spread 25e centile | Spread médian | Spread 75e centile |
 |---|---|---|---|---|---|---|---|---|---|
@@ -323,69 +324,196 @@ Le clustering regroupe les obligations par leurs caractéristiques (notation, ma
 
 | Émetteur | Notation | Séniorité | Maturité (ans) | Devise | Secteur |
 |---|---|---|---|---|---|
-| Émetteur 0138 | A+ | SENIOR_UNSECURED | 6,9 | USD | Télécoms |
+| Émetteur 0002 | BB | SUBORDINATED | 7,5 | EUR | Immobilier |
 
-- Z-Spread juste estimé : 93 pb ; intervalle à 90 % : 80 à 108 pb.
-- Confiance : 96/100 (note A) ; erreur typique attendue 5 pb.
-- Spread observé dans la base pour cette obligation : 100 pb. Il n'a pas servi à l'estimation (l'obligation est exclue de ses propres comparables).
-- Palier : Simple. 5 obligations de l'émetteur, même devise et séniorité, encadrant la maturité (5.0 à 8.8 ans).
-- Modèle retenu : A (comparables). Estimations des modèles (pb) : courbe des pairs 83, A 93, B (CatBoost) 80, C (comparables corrigés) 91, lecture descendante 92.
+- Z-Spread juste estimé : 1 246 pb ; intervalle à 90 % : 823 à 1 888 pb.
+- Confiance : 21/100 (note C) ; erreur typique attendue 151 pb.
+- Spread observé dans la base pour cette obligation : 1 190 pb. Il n'a pas servi à l'estimation (l'obligation est exclue de ses propres comparables).
+- Palier : Complexe. Séniorité SUBORDINATED : instrument subordonné ou hybride.
+- Modèle retenu : A (comparables). Estimations des modèles (pb) : courbe des pairs 1 109, A 1 246, B (CatBoost) 1 050, C (comparables corrigés) 1 192, S (ancrage senior) 1 245, lecture descendante 1 065.
+
+### Dette subordonnée : ancrage sur la dette senior de l'émetteur
+
+- Dette senior de l'émetteur (5 obligation(s)) ramenée au profil de la cible : 398 pb.
+- Prime de subordination : 75,1 % (mesurée sur 160 obligations SUBORDINATED d'émetteurs ayant aussi de la dette senior) ; prime moyenne du marché selon la courbe des pairs : 72,7 %.
+- Estimation ancrée (S) : 1 245 pb.
 
 ### Lecture descendante (contrôle)
 
-- 92 pb ; niveau : même émetteur, même devise et séniorité ; moyenne des 2 points les plus proches de chaque côté ; écart de -1,1 % avec l'estimation.
+- 1 065 pb ; groupe : panier de 159 obligations : même notation (lettre), remboursable, devise, taille (tiers), type de coupon ; barycentre de 159 obligations corrigées ; écart de -14,5 % avec l'estimation.
 
 | Émetteur | Notation | Séniorité | Devise | Maturité (ans) | Spread observé (pb) | Spread corrigé (pb) |
 |---|---|---|---|---|---|---|
-| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 6,4 | 92,2 | 87,4 |
-| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 5,1 | 87,4 | 89,7 |
-| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 7,8 | 101 | 95,0 |
-| Émetteur 0138 | A+ | SENIOR_UNSECURED | USD | 8,8 | 94,1 | 93,8 |
+| Émetteur 0159 | BB+ | SENIOR_UNSECURED | EUR | 7,5 | 325 | 1 060 |
+| Émetteur 0461 | BB | SENIOR_NON_PREFERRED | EUR | 7,5 | 611 | 1 042 |
+| Émetteur 0571 | BB | SENIOR_UNSECURED | EUR | 7,6 | 401 | 1 000 |
+| Émetteur 0515 | BB+ | SENIOR_PREFERRED | EUR | 7,6 | 329 | 874 |
+| Émetteur 0015 | BB- | SECURED | EUR | 7,3 | 354 | 1 112 |
+| Émetteur 0318 | BB | SENIOR_UNSECURED | EUR | 7,7 | 452 | 1 197 |
+| Émetteur 0081 | BB | SENIOR_UNSECURED | EUR | 7,2 | 711 | 1 839 |
+| Émetteur 0422 | BB+ | SENIOR_UNSECURED | EUR | 7,8 | 292 | 1 020 |
+| Émetteur 0318 | BB | SENIOR_UNSECURED | EUR | 7,8 | 482 | 1 257 |
+| Émetteur 0110 | BB- | SENIOR_UNSECURED | EUR | 7,1 | 442 | 1 097 |
+| Émetteur 0178 | BB | SENIOR_UNSECURED | EUR | 7,1 | 462 | 1 230 |
+| Émetteur 0007 | BB+ | SENIOR_UNSECURED | EUR | 7,1 | 444 | 998 |
 
 ### Comparables
 
-- 40 comparables retenus ; les 5 plus proches pèsent 13 % du total.
-- Une fois ramenés aux caractéristiques de votre obligation, 80 % d'entre eux donnent entre 74 et 103 pb.
+- 40 comparables retenus ; les 5 plus proches pèsent 15 % du total.
+- Une fois ramenés aux caractéristiques de votre obligation, 80 % d'entre eux donnent entre 789 et 1 682 pb.
 - L'émetteur a 5 autre(s) obligation(s) : sa propre courbe pèse 83 %, les comparables 17 %.
 
 ### Contrôles
 
 | Contrôle | Résultat | Détail |
 |---|---|---|
-| Spread positif | ok | 92.8 pb |
-| Plage du segment de notation | ok | Estimation 93 pb ; plage 1 %-99 % des notations voisines : 30 à 155 pb. |
-| Accord champion-challenger | ok | Écart relatif entre les deux modèles : 15 % (en log). |
-| Comparables suffisants | ok | Nombre effectif de comparables hors émetteur : 39.9 ; poids de la courbe émetteur : 0.83. |
-| Accord avec la lecture descendante | ok | Lecture descendante 92 pb (même émetteur, même devise et séniorité) ; écart -1 % avec l'estimation. |
+| Spread positif | ok | 1 246,1 pb |
+| Plage du segment de notation | ok | Estimation 1 246 pb ; plage 1 %-99 % des notations voisines : 182 à 1 810 pb. |
+| Cohérence de subordination | ok | Dette senior du même émetteur (5 obligation(s)) ramenée au profil de la cible : 398 pb ; médiane brute 438 pb. L'estimation est au-dessus. |
+| Accord champion-challenger | ok | Écart relatif entre les deux modèles : 17 % (en log). |
+| Comparables suffisants | ok | Nombre effectif de comparables hors émetteur : 39,5 ; poids de la courbe émetteur : 83 %. |
+| Accord avec la lecture descendante | ok | Lecture descendante 1065 pb (panier de 159 obligations : même notation (lettre), remboursable, devise, taille (tiers), type de coupon) ; écart -14 % avec l'estimation. |
 
 ### Cascade (de l'obligation moyenne à l'estimation)
 
 | Étape | Effet (pb) | Cumul (pb) |
 |---|---|---|
 | Obligation moyenne de l'univers | — | 206 |
-| Notation | -124 | 82,5 |
-| Maturité | 13,9 | 96,4 |
-| Séniorité | -12,8 | 83,6 |
-| Secteur | -3,8 | 79,8 |
-| Devise | 4,0 | 83,8 |
-| Pays | 3,0 | 86,8 |
-| Type de coupon | 0,1 | 86,9 |
-| Option de remboursement anticipé | -0,7 | 86,2 |
-| Taille de la souche | -3,3 | 82,9 |
-| Écart émetteur (5 obligation(s), retenu à 83 %, pente de maturité comprise) | 9,0 | 91,8 |
-| Comparables hors émetteur | 1,0 | 92,8 |
+| Notation | 228 | 434 |
+| Maturité | 21,9 | 456 |
+| Séniorité | 331 | 787 |
+| Secteur | 328 | 1 116 |
+| Devise | -21,2 | 1 094 |
+| Pays | 38,6 | 1 133 |
+| Type de coupon | 1,1 | 1 134 |
+| Option de remboursement anticipé | -8,8 | 1 125 |
+| Taille de la souche | -16,5 | 1 109 |
+| Écart émetteur (5 obligation(s), retenu à 83 %, pente de maturité comprise) | 132 | 1 241 |
+| Comparables hors émetteur | 5,5 | 1 246 |
 
 ### Famille de l'obligation selon chaque méthode
 
-- k-means : famille F3 (A · 7 ans · multi-secteurs), estimation au-dessus de 43 % de la famille.
-- Hiérarchique (Ward) : famille F1 (A · 6 ans · multi-secteurs), estimation au-dessus de 42 % de la famille.
-- Mélange gaussien : famille F4 (BBB · 6 ans · multi-secteurs), estimation au-dessus de 20 % de la famille.
-- HDBSCAN (densité) : famille F15 (BBB · 6 ans · Télécoms), estimation au-dessus de 32 % de la famille.
+- k-means : famille F4 (BB · 6 ans · multi-secteurs · subordonnée), estimation au-dessus de 72 % de la famille.
+- Hiérarchique (Ward) : famille F2 (BB · 6 ans · multi-secteurs · subordonnée), estimation au-dessus de 76 % de la famille.
+- Mélange gaussien : famille F3 (BBB · 6 ans · multi-secteurs), estimation au-dessus de 96 % de la famille.
+- HDBSCAN (densité) : famille F1 (BB · 6 ans · multi-secteurs · subordonnée), estimation au-dessus de 89 % de la famille.
 
 ### Réserves de l'estimation
 
 - L'estimation repose uniquement sur les données de la base : liquidité réelle, perspective de notation et actualité de l'émetteur ne sont pas observées.
 - Aucune prime de nouvelle émission n'est ajoutée.
+
+## 6. Qualité des modèles et validation
+
+- Chaque obligation est estimée par des modèles entraînés sans elle (5 plis), et pour la situation « émetteur inconnu », sans aucune obligation de son émetteur. Tous les indicateurs portent sur ces estimations.
+- Estimation retenue : erreur médiane de 8,6 % quand l'émetteur est connu, 14,6 % quand il est inconnu ; 56 % des estimations à moins de 10 % d'erreur quand l'émetteur est connu.
+- 48 tests réussis, 9 échoués, 17 non applicables.
+- Tests échoués : Estimation retenue (émetteur inconnu) : apport par rapport à la courbe des pairs, -1,1 % ; Modèle A (émetteur inconnu) : apport par rapport à la courbe des pairs, -1,1 % ; CatBoost (B) (émetteur inconnu) : apport par rapport à la courbe des pairs, -2,2 % ; A corrigé (C) (émetteur inconnu) : apport par rapport à la courbe des pairs, -2,0 % ; Ancrage senior (S) (émetteur inconnu) : apport par rapport à la courbe des pairs, -1,1 % ; Forêt aléatoire (émetteur connu) : surapprentissage, × 1,49 ; Forêt aléatoire (émetteur inconnu) : apport par rapport à la courbe des pairs, -7,6 % ; Lecture : descendante lissée (émetteur inconnu) : apport par rapport à la courbe des pairs, -12,5 % ; Lecture : entonnoir avec maturité (émetteur inconnu) : apport par rapport à la courbe des pairs, -0,8 %.
+- Émetteur connu : meilleur modèle A corrigé (C) (8,5 %).
+- Émetteur inconnu : meilleur modèle Courbe des pairs (P) (14,4 %).
+- Les lectures de contrôle sont évaluées sur un tirage de 1 500 cas, les autres modèles sur tous les cas.
+
+### Indicateurs hors échantillon
+
+| Modèle | Situation | Cas | Erreur médiane (%) | Erreur médiane (pb) | Biais (%) | Cas < 10 % (%) | Variation entre plis (%) | Validation / apprentissage |
+|---|---|---|---|---|---|---|---|---|
+| Estimation retenue | Émetteur connu | 3 490 | 8,6 | 15,6 | 0,5 | 56,4 | 6,6 | — |
+| Estimation retenue | Émetteur inconnu | 3 600 | 14,6 | 24,8 | 0,4 | 35,9 | 7,8 | — |
+| Courbe des pairs (P) | Émetteur connu | 3 490 | 13,4 | 23,9 | 0,3 | 39,1 | 4,4 | 1,0 |
+| Courbe des pairs (P) | Émetteur inconnu | 3 600 | 14,4 | 24,1 | 0,2 | 36,8 | 4,9 | 1,1 |
+| Modèle A | Émetteur connu | 3 490 | 8,6 | 15,6 | 0,5 | 56,4 | 6,6 | — |
+| Modèle A | Émetteur inconnu | 3 600 | 14,6 | 24,8 | 0,4 | 35,9 | 7,8 | — |
+| CatBoost (B) | Émetteur connu | 3 490 | 12,4 | 22,0 | 0,4 | 40,8 | 4,6 | 1,1 |
+| CatBoost (B) | Émetteur inconnu | 3 600 | 14,8 | 25,4 | 1,3 | 36,1 | 3,0 | 1,3 |
+| A corrigé (C) | Émetteur connu | 3 490 | 8,5 | 15,1 | 0,6 | 56,3 | 5,2 | — |
+| A corrigé (C) | Émetteur inconnu | 3 600 | 14,7 | 25,0 | 0,7 | 34,9 | 3,9 | — |
+| Ancrage senior (S) | Émetteur connu | 3 490 | 8,7 | 15,7 | 0,6 | 55,9 | 5,8 | — |
+| Ancrage senior (S) | Émetteur inconnu | 3 600 | 14,6 | 24,8 | 0,4 | 35,9 | 7,8 | — |
+| Forêt aléatoire | Émetteur connu | 3 490 | 12,5 | 21,7 | 0,8 | 41,7 | 6,5 | 1,5 |
+| Forêt aléatoire | Émetteur inconnu | 3 600 | 15,5 | 28,0 | 1,5 | 32,4 | 4,7 | 1,9 |
+| Lecture : descendante lissée | Émetteur connu | 751 | 9,0 | 16,9 | -0,3 | 53,4 | 9,1 | — |
+| Lecture : descendante lissée | Émetteur inconnu | 749 | 16,5 | 29,1 | 0,6 | 32,4 | 6,9 | — |
+| Lecture : entonnoir avec maturité | Émetteur connu | 751 | 10,9 | 20,2 | -1,5 | 47,0 | 9,0 | — |
+| Lecture : entonnoir avec maturité | Émetteur inconnu | 749 | 14,7 | 24,6 | 1,2 | 35,9 | 9,6 | — |
+
+### Tests
+
+| Modèle | Situation | Test | Statut | Valeur | Règle ou raison |
+|---|---|---|---|---|---|
+| Estimation retenue | Émetteur connu | Biais | réussi | 0,5 % | valeur absolue du biais ≤ 2 % |
+| Estimation retenue | Émetteur connu | Stabilité entre plis | réussi | 7 % | variation ≤ 15 % |
+| Estimation retenue | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 36,0 % | erreur plus faible que la courbe seule |
+| Estimation retenue | Émetteur connu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Estimation retenue | Émetteur connu | Couverture de l'intervalle à 90 % | réussi | 89,9 % | entre 85 et 95 %, mesurée sur des émetteurs non utilisés pour calibrer l'intervalle |
+| Estimation retenue | Émetteur inconnu | Biais | réussi | 0,4 % | valeur absolue du biais ≤ 2 % |
+| Estimation retenue | Émetteur inconnu | Stabilité entre plis | réussi | 8 % | variation ≤ 15 % |
+| Estimation retenue | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -1,1 % | erreur plus faible que la courbe seule |
+| Estimation retenue | Émetteur inconnu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Estimation retenue | Émetteur inconnu | Couverture de l'intervalle à 90 % | réussi | 90,1 % | entre 85 et 95 %, mesurée sur des émetteurs non utilisés pour calibrer l'intervalle |
+| Courbe des pairs (P) | Émetteur connu | Biais | réussi | 0,3 % | valeur absolue du biais ≤ 2 % |
+| Courbe des pairs (P) | Émetteur connu | Stabilité entre plis | réussi | 4 % | variation ≤ 15 % |
+| Courbe des pairs (P) | Émetteur connu | Apport par rapport à la courbe des pairs | non applicable | — | c'est la référence |
+| Courbe des pairs (P) | Émetteur connu | Surapprentissage | réussi | × 1,02 | erreur validation / apprentissage ≤ 1,3 |
+| Courbe des pairs (P) | Émetteur inconnu | Biais | réussi | 0,2 % | valeur absolue du biais ≤ 2 % |
+| Courbe des pairs (P) | Émetteur inconnu | Stabilité entre plis | réussi | 5 % | variation ≤ 15 % |
+| Courbe des pairs (P) | Émetteur inconnu | Apport par rapport à la courbe des pairs | non applicable | — | c'est la référence |
+| Courbe des pairs (P) | Émetteur inconnu | Surapprentissage | non applicable | — | émetteur inconnu : pas d'équivalent en apprentissage |
+| Modèle A | Émetteur connu | Biais | réussi | 0,5 % | valeur absolue du biais ≤ 2 % |
+| Modèle A | Émetteur connu | Stabilité entre plis | réussi | 7 % | variation ≤ 15 % |
+| Modèle A | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 36,0 % | erreur plus faible que la courbe seule |
+| Modèle A | Émetteur connu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Modèle A | Émetteur inconnu | Biais | réussi | 0,4 % | valeur absolue du biais ≤ 2 % |
+| Modèle A | Émetteur inconnu | Stabilité entre plis | réussi | 8 % | variation ≤ 15 % |
+| Modèle A | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -1,1 % | erreur plus faible que la courbe seule |
+| Modèle A | Émetteur inconnu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| CatBoost (B) | Émetteur connu | Biais | réussi | 0,4 % | valeur absolue du biais ≤ 2 % |
+| CatBoost (B) | Émetteur connu | Stabilité entre plis | réussi | 5 % | variation ≤ 15 % |
+| CatBoost (B) | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 7,0 % | erreur plus faible que la courbe seule |
+| CatBoost (B) | Émetteur connu | Surapprentissage | réussi | × 1,12 | erreur validation / apprentissage ≤ 1,3 |
+| CatBoost (B) | Émetteur inconnu | Biais | réussi | 1,3 % | valeur absolue du biais ≤ 2 % |
+| CatBoost (B) | Émetteur inconnu | Stabilité entre plis | réussi | 3 % | variation ≤ 15 % |
+| CatBoost (B) | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -2,2 % | erreur plus faible que la courbe seule |
+| CatBoost (B) | Émetteur inconnu | Surapprentissage | non applicable | — | émetteur inconnu : pas d'équivalent en apprentissage |
+| A corrigé (C) | Émetteur connu | Biais | réussi | 0,6 % | valeur absolue du biais ≤ 2 % |
+| A corrigé (C) | Émetteur connu | Stabilité entre plis | réussi | 5 % | variation ≤ 15 % |
+| A corrigé (C) | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 36,7 % | erreur plus faible que la courbe seule |
+| A corrigé (C) | Émetteur connu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| A corrigé (C) | Émetteur inconnu | Biais | réussi | 0,7 % | valeur absolue du biais ≤ 2 % |
+| A corrigé (C) | Émetteur inconnu | Stabilité entre plis | réussi | 4 % | variation ≤ 15 % |
+| A corrigé (C) | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -2,0 % | erreur plus faible que la courbe seule |
+| A corrigé (C) | Émetteur inconnu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Ancrage senior (S) | Émetteur connu | Biais | réussi | 0,6 % | valeur absolue du biais ≤ 2 % |
+| Ancrage senior (S) | Émetteur connu | Stabilité entre plis | réussi | 6 % | variation ≤ 15 % |
+| Ancrage senior (S) | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 34,9 % | erreur plus faible que la courbe seule |
+| Ancrage senior (S) | Émetteur connu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Ancrage senior (S) | Émetteur inconnu | Biais | réussi | 0,4 % | valeur absolue du biais ≤ 2 % |
+| Ancrage senior (S) | Émetteur inconnu | Stabilité entre plis | réussi | 8 % | variation ≤ 15 % |
+| Ancrage senior (S) | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -1,1 % | erreur plus faible que la courbe seule |
+| Ancrage senior (S) | Émetteur inconnu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Forêt aléatoire | Émetteur connu | Biais | réussi | 0,8 % | valeur absolue du biais ≤ 2 % |
+| Forêt aléatoire | Émetteur connu | Stabilité entre plis | réussi | 7 % | variation ≤ 15 % |
+| Forêt aléatoire | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 6,9 % | erreur plus faible que la courbe seule |
+| Forêt aléatoire | Émetteur connu | Surapprentissage | échoué | × 1,49 | erreur validation / apprentissage ≤ 1,3 |
+| Forêt aléatoire | Émetteur inconnu | Biais | réussi | 1,5 % | valeur absolue du biais ≤ 2 % |
+| Forêt aléatoire | Émetteur inconnu | Stabilité entre plis | réussi | 5 % | variation ≤ 15 % |
+| Forêt aléatoire | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -7,6 % | erreur plus faible que la courbe seule |
+| Forêt aléatoire | Émetteur inconnu | Surapprentissage | non applicable | — | émetteur inconnu : pas d'équivalent en apprentissage |
+| Lecture : descendante lissée | Émetteur connu | Biais | réussi | -0,3 % | valeur absolue du biais ≤ 2 % |
+| Lecture : descendante lissée | Émetteur connu | Stabilité entre plis | réussi | 9 % | variation ≤ 15 % |
+| Lecture : descendante lissée | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 32,1 % | erreur plus faible que la courbe seule |
+| Lecture : descendante lissée | Émetteur connu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Lecture : descendante lissée | Émetteur inconnu | Biais | réussi | 0,6 % | valeur absolue du biais ≤ 2 % |
+| Lecture : descendante lissée | Émetteur inconnu | Stabilité entre plis | réussi | 7 % | variation ≤ 15 % |
+| Lecture : descendante lissée | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -12,5 % | erreur plus faible que la courbe seule |
+| Lecture : descendante lissée | Émetteur inconnu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Lecture : entonnoir avec maturité | Émetteur connu | Biais | réussi | -1,5 % | valeur absolue du biais ≤ 2 % |
+| Lecture : entonnoir avec maturité | Émetteur connu | Stabilité entre plis | réussi | 9 % | variation ≤ 15 % |
+| Lecture : entonnoir avec maturité | Émetteur connu | Apport par rapport à la courbe des pairs | réussi | 18,3 % | erreur plus faible que la courbe seule |
+| Lecture : entonnoir avec maturité | Émetteur connu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
+| Lecture : entonnoir avec maturité | Émetteur inconnu | Biais | réussi | 1,2 % | valeur absolue du biais ≤ 2 % |
+| Lecture : entonnoir avec maturité | Émetteur inconnu | Stabilité entre plis | réussi | 10 % | variation ≤ 15 % |
+| Lecture : entonnoir avec maturité | Émetteur inconnu | Apport par rapport à la courbe des pairs | échoué | -0,8 % | erreur plus faible que la courbe seule |
+| Lecture : entonnoir avec maturité | Émetteur inconnu | Surapprentissage | non applicable | — | méthode à mémoire : en apprentissage, l'obligation serait son propre comparable |
 
 ## Limites connues du système
 

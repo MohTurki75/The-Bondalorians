@@ -55,8 +55,10 @@ def _shap(model, x: pd.DataFrame) -> dict[str, float]:
 
 
 class SpreadGBM:
-    def __init__(self, iterations: int = 300, depth: int = 5, learning_rate: float = 0.08, seed: int = 7):
+    def __init__(self, iterations: int = 300, depth: int = 5, learning_rate: float = 0.08, seed: int = 7,
+                 monotone: bool = False):
         self.params = dict(iterations=iterations, depth=depth, learning_rate=learning_rate, random_seed=seed)
+        self.monotone = monotone
 
     def fit(self, df: pd.DataFrame) -> "SpreadGBM":
         from catboost import CatBoostRegressor
@@ -65,8 +67,11 @@ class SpreadGBM:
             **self.params,
             loss_function="RMSE",
             cat_features=CATEGORICAL,
-            # Le spread ne baisse pas quand la notation ou la séniorité se dégrade.
-            monotone_constraints={"notch": 1, "sen_rank": 1},
+            # Contrainte « le spread ne baisse pas quand la notation ou la séniorité se dégrade ».
+            # Désactivée par défaut : mesurée, elle crée un biais de −4 % (sous-estimation
+            # systématique) et augmente l'erreur de 7 %. Le respect de la monotonie est vérifié
+            # à part (tests et courbes d'effet de l'onglet Analyse).
+            monotone_constraints={"notch": 1, "sen_rank": 1} if self.monotone else None,
             verbose=False,
             allow_writing_files=False,
         )

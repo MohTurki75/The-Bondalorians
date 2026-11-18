@@ -41,6 +41,9 @@ ml:
   iterations: 300            # modèle B : CatBoost indépendant
   depth: 5
   learning_rate: 0.08
+  # Contrainte de monotonie (notation, séniorité) : mesurée, elle crée un biais de −4 %
+  # et 7 % d'erreur en plus ; désactivée. La monotonie est vérifiée à part.
+  monotone: false
   corrector: true            # modèle C : CatBoost qui corrige le modèle A
   corrector_iterations: 200
   corrector_depth: 4
@@ -85,3 +88,10 @@ funnel:
   # Taille minimale du panier : une variable n'est imposée que s'il reste au
   # moins ce nombre d'obligations. Mesuré : l'erreur baisse jusqu'à environ 150.
   min_basket: 150
+
+subordination:
+  # Candidat S : dette subordonnée = dette senior de l'émetteur (ramenée au profil de
+  # la cible) + prime de subordination mesurée chez les émetteurs qui ont les deux.
+  # Retenu seulement si le backtest le juge meilleur (même marge que les autres).
+  enabled: true
+  shrink: true               # niveau senior de l'émetteur rétréci comme l'écart émetteur (n / (n + k))
