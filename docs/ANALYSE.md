@@ -97,13 +97,14 @@ En ligne de commande :
 
     python scripts/qualite.py
 
-Résultat sur les données synthétiques réalistes : 40 tests réussis, 11 échoués.
-Les échecs les plus parlants :
-- l'estimation retenue ne fait pas mieux que la courbe des pairs pour un
-  émetteur inconnu (−1,1 %) : la marge de 5 % garde le modèle A ;
-- CatBoost sous-estime systématiquement d'environ 4 % (biais) ;
-- la forêt aléatoire surapprend (erreur de validation 1,5 fois l'erreur
-  d'apprentissage).
+La **couverture** est mesurée honnêtement : les émetteurs sont coupés en deux
+moitiés, l'intervalle est recalibré sur l'une et sa couverture mesurée sur
+l'autre, puis l'inverse. Mesurer la couverture sur les erreurs qui ont servi à
+calibrer l'intervalle donnerait presque 90 % par construction.
+
+Le biais de CatBoost (environ −4 %) venait de sa contrainte de monotonie ; elle
+est désactivée par défaut. La forêt aléatoire surapprend (erreur de validation
+1,5 fois l'erreur d'apprentissage) ; elle ne sert que de comparaison.
 
 ## Partie 5 : Clustering
 

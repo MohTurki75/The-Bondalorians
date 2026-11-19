@@ -11,10 +11,10 @@ def build_waterfall(
     mean_log: float,
     group_contributions: dict[str, float],
     issuer_term_log: float,
-    issuer_label: str,
+    issuer_label: str | None,
     peers_term_log: float,
     final_log: float,
-    peers_label: str = "Comparables hors émetteur",
+    peers_label: str | None = "Comparables hors émetteur",
 ) -> list[dict]:
     """Chaque étape est un écart en log converti en points de base, dans l'ordre.
 
@@ -33,8 +33,11 @@ def build_waterfall(
 
     for group, label in GROUP_LABELS.items():
         add(label, group_contributions.get(group, 0.0))
-    add(issuer_label, issuer_term_log)
-    add(peers_label, peers_term_log)
+    # Une étape sans libellé (sans objet : émetteur inconnu, courbe seule retenue) est omise.
+    if issuer_label is not None:
+        add(issuer_label, issuer_term_log)
+    if peers_label is not None:
+        add(peers_label, peers_term_log)
     residual = final_log - cumulative
     if abs(residual) > 1e-9:
         add("Ajustement du modèle retenu", residual)

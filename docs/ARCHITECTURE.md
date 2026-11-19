@@ -152,6 +152,14 @@ La courbe des pairs, les résidus et `k` sont recalculés aussitôt. Les modèle
 CatBoost, les paramètres de comparables, le champion et les intervalles ne
 changent qu'au prochain ajustement complet ; aucune promotion n'est automatique.
 
+## Dette subordonnée
+
+Candidat S : dette senior de l'émetteur ramenée au profil de la cible, plus une
+prime de subordination mesurée à l'intérieur des émetteurs qui ont les deux
+types de dette (`quant/subordination.py`). Le contrôle de subordination compare
+l'estimation à cette dette senior ramenée au même profil, et non à une médiane
+brute.
+
 ## Limites connues
 
 - **Données synthétiques** : le profil réaliste contient des effets que le

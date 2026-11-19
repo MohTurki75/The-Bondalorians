@@ -29,17 +29,18 @@ MODEL_LABELS = {
     "A_comparables_bp": "A · Comparables ajustés",
     "B_catboost_bp": "B · CatBoost indépendant",
     "C_comparables_corriges_bp": "C · Comparables corrigés",
+    "S_ancrage_senior_bp": "S · Ancrage sur la dette senior",
     "top_down_bp": "Lecture descendante (contrôle)",
 }
 CHAMPION_KEY = {"A": "A_comparables_bp", "B": "B_catboost_bp", "C": "C_comparables_corriges_bp",
-                "P": "courbe_pairs_bp"}
+                "P": "courbe_pairs_bp", "S": "S_ancrage_senior_bp"}
 TIER_LABELS = {
     "simple": "Simple", "intermediaire": "Intermédiaire", "complexe": "Complexe",
     "emetteur_inconnu": "Émetteur inconnu",
 }
 BACKTEST_MODELS = {
     "courbe_pairs": "courbe des pairs", "A_comparables": "modèle A",
-    "B_catboost": "modèle B", "C_comparables_corriges": "modèle C",
+    "B_catboost": "modèle B", "C_comparables_corriges": "modèle C", "S_ancrage_senior": "modèle S",
 }
 STATUS_LABEL = {"ok": "✓ Conforme", "alerte": "⚠ Alerte", "echec": "✕ Échec"}
 # Polarité de la cascade : hausse et baisse du spread, totaux en neutre.
@@ -171,6 +172,24 @@ def show_result(result: dict) -> None:
             controls.rename(columns={"control": "Contrôle", "status": "Résultat", "detail": "Détail"}),
             hide_index=True, width="stretch",
         )
+
+    senior = result.get("subordination")
+    if senior:
+        st.subheader("Dette subordonnée : ancrage sur la dette senior de l'émetteur")
+        st.caption(
+            "Une dette subordonnée vaut la dette senior du même émetteur plus une prime de subordination. Les "
+            "obligations senior de l'émetteur sont ramenées au profil de votre obligation (maturité, devise…), puis la "
+            "prime est mesurée chez les émetteurs qui ont les deux types de dette."
+        )
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Dette senior de l'émetteur, à ce profil", f"{senior['senior_equivalent_bp']:.0f} pb",
+                  help=f"{senior['senior_bonds']} obligation(s) senior, ramenées à la maturité et à la devise de votre "
+                       f"obligation, avec leur propre notation. Dans l'ancrage, ce niveau est retenu à "
+                       f"{100 * senior['senior_weight']:.0f} %.")
+        c2.metric("Prime de subordination", f"+{senior['premium_pct']:.0f} %",
+                  help=f"Prime moyenne du marché selon la courbe des pairs : +{senior['generic_premium_pct']:.0f} %.")
+        c3.metric("Estimation ancrée (S)", f"{senior['anchor_bp']:.0f} pb")
+        st.caption(f"Prime {senior['premium_source']}. Le modèle S n'est retenu que si le backtest le juge meilleur.")
 
     reading = result.get("top_down")
     if reading:

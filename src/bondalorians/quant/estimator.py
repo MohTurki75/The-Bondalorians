@@ -31,6 +31,7 @@ from bondalorians.quant.confidence import (
 from bondalorians.quant.conformal import conformal_quantile
 from bondalorians.quant.gbm import SpreadCorrector, SpreadGBM, catboost_available
 from bondalorians.quant.peer_curve import PeerCurve
+from bondalorians.quant.subordination import SubordinationModel
 from bondalorians.quant.topdown import read as read_control
 from bondalorians.quant.shrinkage import estimate_shrinkage_k, estimate_slope_shrinkage
 from bondalorians.quant.tuning import WEIGHT_KEYS, tune_comparables
@@ -45,7 +46,8 @@ FILTER_LEVELS = [
 ]
 # P : courbe des pairs seule. Elle concourt aussi : pour un émetteur inconnu, les
 # comparables d'autres émetteurs peuvent ajouter plus de bruit que d'information.
-MODEL_COLUMNS = {"A": "log_a", "B": "log_b", "C": "log_c", "P": "peer_log"}
+# S : dette subordonnée ancrée sur la dette senior de l'émetteur (égale à A ailleurs).
+MODEL_COLUMNS = {"A": "log_a", "B": "log_b", "C": "log_c", "P": "peer_log", "S": "log_s"}
 _ARRAYS_OBJECT = ["isin", "issuer", "currency", "seniority", "coupon_type", "sector", "country"]
 _ARRAYS_FLOAT = ["notch", "log_t", "maturity_years", "log_amt", "sen_rank", "obs_weight", "z_spread"]
 
@@ -116,6 +118,9 @@ class ZSpreadEstimator:
         if self.settings["comparables"].get("issuer_slope", False):
             self.slope_ = estimate_slope_shrinkage(
                 self.a_["resid"], self.a_["issuer"], self.a_["log_t"], self.noise_sd_**2)
+        self.subordination_ = None
+        if self.settings.get("subordination", {}).get("enabled", True):
+            self.subordination_ = SubordinationModel().fit(self)
         digest = hashlib.sha256(
             pd.util.hash_pandas_object(self.df_[["issuer", "maturity_years", "z_spread"]]).to_numpy().tobytes()
         ).hexdigest()[:10]
@@ -126,7 +131,8 @@ class ZSpreadEstimator:
         if not self.use_ml:
             return
         ml = self.settings["ml"]
-        self.ml_ = SpreadGBM(ml["iterations"], ml["depth"], ml["learning_rate"]).fit(self.df_)
+        self.ml_ = SpreadGBM(ml["iterations"], ml["depth"], ml["learning_rate"],
+                             monotone=ml.get("monotone", False)).fit(self.df_)
         if not ml["corrector"]:
             return
         # Le correcteur apprend l'erreur du modèle A calculée sans l'obligation
@@ -285,7 +291,9 @@ class ZSpreadEstimator:
                 cores = [sub._core(row, peer_log=float(pl)) for row, pl in zip(rows, peer_logs)]
                 logs_b, logs_c = sub._ml_logs(rows, cores)
                 for row_id, row, core, log_b, log_c in zip(test_ids, rows, cores, logs_b, logs_c):
+                    anchor = sub.subordination_anchor(row)
                     records.append({
+                        "log_s": core["log_a"] if anchor is None else anchor["log"],
                         "row_id": int(row_id), "scheme": scheme, "key": core["key"],
                         "y_log": math.log(row["z_spread"]), "peer_log": core["peer_log"],
                         "log_a": core["log_a"], "log_b": log_b, "log_c": log_c,
@@ -338,6 +346,34 @@ class ZSpreadEstimator:
             "error_model": ErrorModel(self.use_ml).fit(x, err), "sigma_reference": np.sort(sigma),
         }
 
+    def subordination_anchor(self, t: dict, exclude_isin=None) -> dict | None:
+        """Ancrage de la dette subordonnée sur la dette senior de l'émetteur (None si sans objet)."""
+        if self.subordination_ is None:
+            return None
+        shrink = self.settings.get("subordination", {}).get("shrink", True)
+        return self.subordination_.anchor(self, t, exclude_isin=exclude_isin, shrink=shrink)
+
+    def _waterfall(self, t: dict, core: dict, champion: str, anchor: dict | None, final_log: float) -> list[dict]:
+        """Cascade explicative adaptée au modèle retenu."""
+        lam = core["lam"]
+        if champion == "S" and anchor is not None:
+            issuer_term = anchor["weight"] * anchor["senior_level_log"]
+            issuer_label = (f"Niveau de la dette senior de l'émetteur ({anchor['senior_bonds']} obligation(s), "
+                            f"retenu à {100 * anchor['weight']:.0f} %)")
+            peers_term = anchor["premium_log"] - anchor["generic_premium_log"]
+            peers_label = "Prime de subordination mesurée chez les émetteurs, au lieu de la prime moyenne"
+        elif champion == "P":
+            issuer_term, issuer_label = 0.0, None
+            peers_term, peers_label = 0.0, None
+        else:
+            issuer_term = core["issuer_term"]
+            issuer_label = None if core["n_issuer"] == 0 else (
+                f"Écart émetteur ({core['n_issuer']} obligation(s), retenu à {100 * lam:.0f} %"
+                + (", pente de maturité comprise)" if core["lam_slope"] > 0.05 and abs(core["delta_t"]) > 0.05 else ")"))
+            peers_term, peers_label = (1 - lam) * core["r_peers"], "Comparables hors émetteur"
+        return build_waterfall(self.peer_.mean_log_, self.peer_.group_contributions(t), issuer_term, issuer_label,
+                               peers_term, final_log, peers_label=peers_label)
+
     def _dispersion_args(self) -> dict | None:
         """Indicateurs de dispersion pour le modèle de difficulté (None : désactivés)."""
         if not self.settings["confidence"].get("dispersion_features", False):
@@ -351,7 +387,7 @@ class ZSpreadEstimator:
         oof = self.calibration_["oof"]
         truth = np.exp(oof["y_log"])
         names = {"courbe_pairs": "peer_log", "A_comparables": "log_a",
-                 "B_catboost": "log_b", "C_comparables_corriges": "log_c"}
+                 "B_catboost": "log_b", "C_comparables_corriges": "log_c", "S_ancrage_senior": "log_s"}
         rows = []
         for key, group in oof.groupby("key"):
             row = {"palier": key, "n": len(group), "champion": self.calibration_["champion"].get(key, "A")}
@@ -403,7 +439,9 @@ class ZSpreadEstimator:
         t, exclude, observed = self.resolve(bond)
         core = self._core(t, exclude_isin=exclude)
         (log_b,), (log_c,) = self._ml_logs([t], [core])
-        logs = {"A": core["log_a"], "B": log_b, "C": log_c, "P": core["peer_log"]}
+        anchor = self.subordination_anchor(t, exclude_isin=exclude)
+        logs = {"A": core["log_a"], "B": log_b, "C": log_c, "P": core["peer_log"],
+                "S": None if anchor is None else anchor["log"]}
         a, cal = self.a_, self.calibration_
 
         champion = (cal or {}).get("champion", {}).get(core["key"], "A")
@@ -440,8 +478,11 @@ class ZSpreadEstimator:
 
         near = core["near"]
         bounds = tuple(np.percentile(a["z_spread"][near], [1, 99])) if near.sum() >= 10 else None
-        senior = core["issuer_mask"] & (a["sen_rank"] < t["sen_rank"]) & (a["currency"] == t["currency"])
-        senior_ref = float(np.median(a["z_spread"][senior])) if senior.any() else None
+        senior_check = None
+        if anchor is not None:
+            raw = np.isin(a["isin"], anchor["senior_isins"])
+            senior_check = {"equivalent_bp": math.exp(anchor["senior_equivalent_log"]),
+                            "raw_median_bp": float(np.median(a["z_spread"][raw])), "n": anchor["senior_bonds"]}
 
         comparables = [
             {
@@ -469,6 +510,7 @@ class ZSpreadEstimator:
                 "A_comparables_bp": round(math.exp(core["log_a"]), 1),
                 "B_catboost_bp": None if log_b is None else round(math.exp(log_b), 1),
                 "C_comparables_corriges_bp": None if log_c is None else round(math.exp(log_c), 1),
+                "S_ancrage_senior_bp": None if anchor is None else round(math.exp(anchor["log"]), 1),
                 "top_down_bp": None,
             },
             "confidence": confidence,
@@ -480,20 +522,23 @@ class ZSpreadEstimator:
             },
             "filter_level": FILTER_LEVELS[core["filter_level"]],
             "comparables": comparables,
-            "waterfall": build_waterfall(
-                self.peer_.mean_log_, self.peer_.group_contributions(t),
-                0.0 if champion == "P" else core["issuer_term"],
-                f"Écart émetteur ({core['n_issuer']} obligation(s), retenu à {100 * lam:.0f} %"
-                + (", pente de maturité comprise)" if core["lam_slope"] > 0.05 and abs(core["delta_t"]) > 0.05 else ")"),
-                0.0 if champion == "P" else (1 - lam) * core["r_peers"], final_log,
-                peers_label="Comparables hors émetteur" + (" (non retenus : courbe seule)" if champion == "P" else ""),
-            ),
+            "waterfall": self._waterfall(t, core, champion, anchor, final_log),
             "controls": run_controls(
-                estimate_bp, bounds, senior_ref, gap, core["n_eff"], lam, self.settings
+                estimate_bp, bounds, senior_check, gap, core["n_eff"], lam, self.settings
             ),
             "caveats": caveats,
             "model_version": self.model_version_,
         }
+        if anchor is not None:
+            result["subordination"] = {
+                "senior_bonds": anchor["senior_bonds"], "senior_isins": anchor["senior_isins"],
+                "senior_equivalent_bp": round(math.exp(anchor["senior_equivalent_log"]), 1),
+                "senior_weight": round(anchor["weight"], 3),
+                "premium_pct": round(100 * (math.exp(anchor["premium_log"]) - 1), 1),
+                "generic_premium_pct": round(100 * (math.exp(anchor["generic_premium_log"]) - 1), 1),
+                "premium_source": anchor["premium_source"],
+                "anchor_bp": round(math.exp(anchor["log"]), 1),
+            }
         # Lecture descendante : contrôle lisible, pas le chiffre retenu.
         reader = self.settings.get("top_down", {}).get("reader", "Entonnoir avec maturité")
         reading = read_control(self, t, reader, exclude_isin=exclude, explain=True)

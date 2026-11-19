@@ -13,7 +13,7 @@ from bondalorians.quant.gbm import _features as catboost_features
 LETTERS = {"AA": 3, "A": 6, "BBB": 9, "BB": 12, "B": 15}
 MODEL_NAMES = {
     "peer_log": "Courbe des pairs", "log_a": "A · Comparables", "log_b": "B · CatBoost",
-    "log_c": "C · Comparables corrigés", "log_rf": "Forêt aléatoire",
+    "log_c": "C · Comparables corrigés", "log_s": "S · Ancrage senior", "log_rf": "Forêt aléatoire",
 }
 SHAP_LABELS = {
     "notch": "Notation", "log_t": "Maturité", "sen_rank": "Rang de séniorité", "log_amt": "Taille",
@@ -315,12 +315,16 @@ def confidence_view(estimator) -> dict:
         score=("score", "first"), erreur_mediane_pct=("err", lambda e: 100 * e.median()),
         erreur_prevue_pct=("sigma", lambda s: 100 * s.median()),
     ).reset_index()
+    from bondalorians.analysis.quality import honest_coverage
+
+    oof["issuer"] = estimator.df_["issuer"].to_numpy()[oof["row_id"].to_numpy()]
     rows = []
     for key, group in oof.groupby("key"):
         q = cal["quantile"].get(key, cal["quantile"]["_global"])
         half = q * group["sigma"] if cal["adaptive"] else q
+        # Couverture mesurée sur des émetteurs qui n'ont pas servi à calibrer l'intervalle.
         rows.append({"palier": TIER_LABELS[key], "n": len(group),
-                     "couverture": round(float((group["err"] <= half).mean()), 3),
+                     "couverture": round(honest_coverage(group, cal), 3),
                      "largeur_mediane_pct": round(float(100 * (np.exp(np.median(half)) - np.exp(-np.median(half)))), 1)})
     coverage = pd.DataFrame(rows)
     easiest, hardest = by_decile.iloc[0], by_decile.iloc[-1]
@@ -330,7 +334,7 @@ def confidence_view(estimator) -> dict:
         f"les 10 % les plus difficiles, {fmt(hardest['erreur_mediane_pct'], 1)} %.",
         f"Le classement par difficulté est {'utile' if rank > 0.2 else 'faible' if rank > 0.05 else 'sans valeur'} "
         f"(corrélation de rang {fmt(rank, 2)} entre difficulté prévue et erreur réalisée).",
-        "Couverture visée : 90 %. Obtenue : " + ", ".join(
+        "Couverture visée : 90 %. Obtenue, sur des émetteurs non utilisés pour calibrer l'intervalle : " + ", ".join(
             f"{r.palier.lower()} {pct(r.couverture)}" for r in coverage.itertuples()) + ".",
     ]
     return {"title": "Confiance et intervalle", "findings": findings,
