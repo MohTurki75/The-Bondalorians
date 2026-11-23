@@ -24,7 +24,7 @@ DEFAULTS: dict = {
         "issuer_slope": True,
         "weights": {"notch": 0.35, "maturity": 0.25, "sector": 0.25, "country": 0.10, "size": 0.05},
     },
-    "peer_curve": {"ridge": 0.01, "enriched": True},
+    "peer_curve": {"ridge": 0.01, "enriched": True, "extra": []},
     "ml": {
         "iterations": 300, "depth": 5, "learning_rate": 0.08,
         "monotone": False, "corrector": True, "corrector_iterations": 200, "corrector_depth": 4,

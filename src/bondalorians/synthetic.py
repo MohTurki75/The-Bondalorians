@@ -123,3 +123,49 @@ def make_universe(n_bonds: int = 4000, n_issuers: int = 600, seed: int = 42,
             "z_spread": round(float(np.exp(log_spread)), 1),
         })
     return pd.DataFrame(rows)
+
+
+MOODYS = {"AAA": "Aaa", "AA+": "Aa1", "AA": "Aa2", "AA-": "Aa3", "A+": "A1", "A": "A2", "A-": "A3",
+          "BBB+": "Baa1", "BBB": "Baa2", "BBB-": "Baa3", "BB+": "Ba1", "BB": "Ba2", "BB-": "Ba3",
+          "B+": "B1", "B": "B2", "B-": "B3", "CCC+": "Caa1", "CCC": "Caa2", "CCC-": "Caa3"}
+RAW_SENIORITY = {"SECURED": "Secured", "SENIOR_PREFERRED": "Sr Preferred", "SENIOR_UNSECURED": "Sr Unsecured",
+                 "SENIOR_NON_PREFERRED": "Senior Non-Preferred", "TIER2": "Tier 2", "AT1": "AT1",
+                 "SUBORDINATED": "Jr Subordinated", "HYBRID": "Hybrid perpetual"}
+
+
+def make_raw_database(n_bonds: int = 3000, seed: int = 11, as_of: str = "2026-11-24",
+                      esg_effect: float = 0.04) -> pd.DataFrame:
+    """Base « brute » comme celle d'un jour 1 : noms de colonnes libres, formats hétérogènes.
+
+    Contient en plus une note ESG (lettres MSCI) qui réduit le spread de `esg_effect`
+    (en log) par cran, une date d'émission, une duration, un prix et un rendement
+    calculés à partir du spread (donc liés mécaniquement à lui).
+    """
+    rng = np.random.default_rng(seed)
+    base = make_universe(n_bonds=n_bonds, n_issuers=450, seed=seed, profile="realiste")
+    esg_letters = np.array(["CCC", "B", "BB", "BBB", "A", "AA", "AAA"])
+    issuer_esg = {i: rng.integers(0, 7) for i in base["issuer"].unique()}
+    esg = base["issuer"].map(issuer_esg).to_numpy()
+    spread = base["z_spread"].to_numpy() * np.exp(-esg_effect * (esg - 3))
+    today = pd.Timestamp(as_of)
+    maturity = today + pd.to_timedelta(base["maturity_years"].to_numpy() * 365.25, unit="D")
+    age = rng.uniform(0.1, 8.0, len(base))
+    issue = today - pd.to_timedelta(age * 365.25, unit="D")
+    swap = {"EUR": 2.4, "USD": 4.1, "GBP": 4.0}
+    ytm = base["currency"].map(swap).to_numpy() + spread / 100
+    coupon = np.round(ytm + rng.normal(0, 0.6, len(base)), 3)
+    t = base["maturity_years"].to_numpy()
+    duration = (1 - (1 + ytm / 100) ** -t) / (ytm / 100)
+    price = coupon / (ytm / 100) * (1 - (1 + ytm / 100) ** -t) + 100 * (1 + ytm / 100) ** -t
+    ratings = [MOODYS.get(r, r) if rng.random() < 0.3 else r for r in base["rating"]]
+    return pd.DataFrame({
+        "Code ISIN": base["isin"], "Nom émetteur": base["issuer"], "Secteur GICS": base["sector"],
+        "Pays de risque": base["country"], "Devise": base["currency"], "Notation composite": ratings,
+        "Rang de paiement": base["seniority"].map(RAW_SENIORITY), "Type coupon": np.where(
+            base["coupon_type"] == "FIXED", "Fixe", "Variable"),
+        "Coupon (%)": coupon, "Callable": np.where(base["callable"], "Y", "N"),
+        "Date échéance": maturity.strftime("%d/%m/%Y"), "Date émission": issue.strftime("%d/%m/%Y"),
+        "Encours": base["amount_outstanding"], "Note ESG MSCI": esg_letters[esg],
+        "Duration modifiée": np.round(duration, 3), "Prix": np.round(price, 3),
+        "Rendement (%)": np.round(ytm, 3), "Z-Spread (pb)": np.round(spread, 1),
+    })

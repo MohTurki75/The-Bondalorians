@@ -41,6 +41,51 @@ Le fichier `.env` n'est jamais versionné. Trois cas :
 Autres réglages : `BONDALORIANS_USE_ML=0` coupe CatBoost (préparation en
 5 secondes au lieu d'une minute) ; `BONDALORIANS_PORT` change le port.
 
+### Lire la base du jour 1 en une commande
+
+Le script propose la correspondance des colonnes (par leur nom et leur
+contenu), traduit les valeurs (séniorité, type de coupon), lit les dates au
+format français, reconnaît les notations S&P, Moody's et Fitch sous leurs
+formes courantes (« Baa1 *- », « BBB+ (S&P) »), dresse le profil de la base et
+teste les colonnes supplémentaires.
+
+Depuis un fichier exporté :
+
+    python scripts/jour1.py --csv base.csv --sep ";" --as-of 2026-11-24
+
+Depuis PostgreSQL :
+
+    python scripts/jour1.py --dsn "host=... dbname=... user=..." --query "SELECT * FROM schema.table" --as-of 2026-11-24
+
+À relire dans la sortie :
+
+1. **Correspondance proposée** : colonne retenue pour chaque champ, confiance,
+   autres candidates. Une confiance faible ou un champ obligatoire manquant se
+   corrige à la main dans `config/schema_map.yaml` (option `--ecrire` pour
+   l'écrire, l'ancien fichier étant gardé en `.bak`).
+2. **Traduction des valeurs** : chaque libellé de séniorité et sa catégorie.
+3. **Profil** : lignes écartées, obligations par émetteur, répartitions.
+4. **Colonnes supplémentaires** :
+   - ESG, ancienneté de l'émission (calculée depuis la date d'émission) :
+     recommandées seulement si elles réduisent l'erreur hors échantillon d'au
+     moins 1 %, émetteur connu comme inconnu ;
+   - duration : jamais recommandée d'office. Une duration modifiée se calcule
+     au rendement de marché, qui contient le spread : son gain peut être une
+     fuite ;
+   - prix et rendement (YTM) : jamais utilisés comme variables. Ils sont liés
+     mécaniquement au spread ; les utiliser reviendrait à recalculer le spread
+     de la cotation au lieu de l'estimer.
+5. **Réglage à reporter** : la ligne `extra: [...]` à copier dans
+   `config/settings.yaml`, section `peer_curve`.
+
+Le script écrit `data/base_jour1.csv` au schéma interne ; l'interface le lit
+directement :
+
+    BONDALORIANS_CSV=data/base_jour1.csv scripts/start.sh
+
+`--as-of` doit être la date des spreads de la base : c'est elle qui sert à
+calculer les maturités et l'ancienneté.
+
 ### Préparer PostgreSQL (jour 1)
 
 1. Créer les référentiels et les tables de journal, avec un compte autorisé à écrire :

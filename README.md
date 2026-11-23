@@ -51,6 +51,7 @@ la courbe émetteur, poids de distance des comparables, champion, confiance.
     python scripts/ablation.py --ml         # effet de chaque amélioration
     python scripts/export_analyses.py       # rapport Markdown des analyses, pour un LLM
     python scripts/qualite.py               # indicateurs et tests de chaque modèle
+    python scripts/jour1.py --csv base.csv  # jour 1 : correspondance des colonnes, profil, colonnes en plus
     pytest
 
 Interface de démonstration :
@@ -73,7 +74,8 @@ Serveur MCP sur PostgreSQL (jour 1) :
 
 ## Le jour 1
 
-Le seul fichier à adapter au schéma réel est `config/schema_map.yaml`. Les
+Le seul fichier à adapter au schéma réel est `config/schema_map.yaml`.
+`scripts/jour1.py` le propose automatiquement (voir docs/LANCEMENT.md). Les
 paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 
 ## Structure

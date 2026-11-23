@@ -36,6 +36,10 @@ peer_curve:
   # Termes explicables ajoutés : courbure de maturité, sensibilité à la notation
   # par secteur, prime de séniorité selon la notation, pays, taille de la souche.
   enriched: true
+  # Variables supplémentaires du jour 1, à n'activer que si scripts/jour1.py montre
+  # qu'elles réduisent l'erreur : esg, age (ancienneté de l'émission), duration.
+  # Jamais price ni ytm : ils sont liés mécaniquement au spread.
+  extra: []
 
 ml:
   iterations: 300            # modèle B : CatBoost indépendant
