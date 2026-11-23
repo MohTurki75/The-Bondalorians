@@ -106,7 +106,48 @@ Le biais de CatBoost (environ −4 %) venait de sa contrainte de monotonie ; ell
 est désactivée par défaut. La forêt aléatoire surapprend (erreur de validation
 1,5 fois l'erreur d'apprentissage) ; elle ne sert que de comparaison.
 
-## Partie 5 : Clustering
+## Partie 5 : Motifs pour les agents
+
+Cette partie transforme ce que la base et le backtest ont appris en consignes
+pour des agents. Elle est aussi disponible en fichier JSON
+(`python scripts/motifs.py`, qui écrit `rapports/fiche_agents.json` et
+`rapports/fiche_agents.md`) et par les outils MCP `agent_brief` et
+`patterns_for_bond`.
+
+**Table d'aiguillage.** Les cas sont croisés : notation (investissement ou haut
+rendement) × dette (senior ou subordonnée) × émetteur (inconnu, 1 à 2
+obligations, 3 ou plus). Pour chaque case : l'erreur de l'estimation actuelle,
+la méthode qui se trompe le moins, et la recommandation. On ne recommande de
+changer de méthode que si elle fait au moins 5 % mieux, sur chacune de deux
+moitiés d'émetteurs indépendantes. Si l'intervalle couvre moins de 85 % des
+cas dans une case, un facteur d'élargissement est indiqué.
+
+**Poches de biais.** Segments (une ou deux caractéristiques : notation,
+séniorité, secteur, devise, pays, maturité, taille, remboursable, coupon, ESG,
+ancienneté) où l'estimation se trompe toujours dans le même sens. Garde-fous :
+
+- au moins 30 obligations et 8 émetteurs ;
+- test sur les moyennes par émetteur, car les obligations d'un même émetteur
+  ne sont pas indépendantes ;
+- correction pour le nombre de segments testés (Benjamini-Hochberg), séparée
+  pour les segments simples et les croisements ;
+- réplication : même signe et ampleur suffisante sur deux moitiés
+  d'émetteurs ;
+- un croisement n'est gardé que s'il dit nettement plus que ses deux effets
+  simples.
+
+Vérifications : une poche injectée (+30 % sur l'énergie en dollars) est
+retrouvée ; sur des écarts mélangés au hasard, aucune poche n'est trouvée.
+
+**Pistes.** Les poches de la courbe des pairs (avant l'écart émetteur et les
+comparables) indiquent des effets que la courbe ne capte pas : candidats pour
+une nouvelle variable ou interaction.
+
+**Règles.** Chaque constat devient une consigne avec sa preuve chiffrée.
+`patterns_for_bond` renvoie, pour une obligation précise, sa case
+d'aiguillage, les poches qui la concernent et les règles applicables.
+
+## Partie 6 : Clustering
 
 Le clustering regroupe les obligations qui se ressemblent par leurs
 caractéristiques. **Il n'estime pas le spread** : il aide à lire l'échantillon
@@ -196,6 +237,8 @@ graphiques :
 | `analyze_clusters` | Familles selon `method` (`kmeans`, `ward`, `gmm`, `hdbscan`), avec placement de l'obligation si `run_id` est donné |
 | `analysis_report` | Le rapport Markdown complet ci-dessus |
 | `model_quality` | Indicateurs et tests de chaque modèle |
+| `agent_brief` | Fiche de connaissances : aiguillage, poches, règles |
+| `patterns_for_bond` | Ce que la fiche dit d'une obligation précise |
 
 Chaque réponse contient une liste `findings` : des phrases en français dont
 tous les chiffres sont calculés. L'agent peut les reformuler, mais ne doit pas

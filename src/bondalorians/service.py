@@ -163,6 +163,23 @@ class Service:
 
         return for_agent(model_quality(self.estimator, include_forest=include_forest, max_cases=max_cases))
 
+    def agent_brief(self) -> dict:
+        """Fiche de connaissances pour les agents (calculée une fois par version du modèle)."""
+        from bondalorians.analysis.agent_brief import build_brief
+
+        cache = getattr(self, "_brief", None)
+        if cache is None or cache[0] != self.estimator.model_version_:
+            self._brief = (self.estimator.model_version_, build_brief(self.estimator))
+        return self._brief[1]
+
+    def patterns_for_bond(self, bond: str | dict) -> dict:
+        """Case d'aiguillage, poches et règles qui s'appliquent à une obligation."""
+        from bondalorians.analysis.agent_brief import patterns_for_bond
+
+        target, exclude, _ = self.estimator.resolve(bond)
+        core = self.estimator._core(target, exclude_isin=exclude)
+        return patterns_for_bond(self.agent_brief(), target, core["n_issuer"] if core["issuer_seen"] else None)
+
     def analysis_report(self, run_id: str | None = None, include_forest: bool = True,
                         source: str = "") -> str:
         """Rapport Markdown complet, à donner à un LLM pour interprétation."""

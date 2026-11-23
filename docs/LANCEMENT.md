@@ -83,6 +83,13 @@ directement :
 
     BONDALORIANS_CSV=data/base_jour1.csv scripts/start.sh
 
+Ensuite, la fiche pour les agents :
+
+    python scripts/motifs.py data/base_jour1.csv
+
+Elle écrit `rapports/fiche_agents.json` (à donner aux agents) et
+`rapports/fiche_agents.md` (à relire).
+
 `--as-of` doit être la date des spreads de la base : c'est elle qui sert à
 calculer les maturités et l'ancienneté.
 
