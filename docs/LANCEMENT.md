@@ -144,8 +144,9 @@ Cas particuliers :
   sensibilité du spread à deux crans au-dessus et en dessous : à lire avant de conclure.
 - **Cotée au call** : « Date Maturité Pricing » bien avant « Date Maturité » → maturité jusqu'au call,
   remboursable. Si les deux dates sont égales, le « CALLABLE » est un call de fin de vie, ignoré.
-- **Bail-in** : signalé ; n'agit sur l'estimation que si la variable `bailin` est activée
-  (`peer_curve.extra`), c'est-à-dire si `jour1.py` montre qu'elle réduit l'erreur.
+- **Bail-in** : signalé, ce n'est pas un rang (la senior préférée d'une banque est aussi « bail-in »).
+  Le rang vient de « Rang Seniorité » : « Senior Bail-In » = senior non préférée. La variable `bailin`
+  n'agit que si elle est activée (`peer_curve.extra`) et que `jour1.py` montre qu'elle réduit l'erreur.
 - **Obligation déjà dans la base** (même ID) : exclue de ses propres comparables ; son spread observé
   est affiché à côté de l'estimation, pour contrôle.
 
