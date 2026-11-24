@@ -281,6 +281,158 @@ def feedback_form(result: dict) -> None:
             st.rerun()
 
 
+
+# ------------------------------------------------------------------ saisie
+def _most_common(series: pd.Series, options: list) -> int | None:
+    """Position de la valeur la plus fréquente de l'émetteur (pas celle de sa première obligation)."""
+    values = series.dropna().astype(str)
+    if values.empty:
+        return None
+    value = values.value_counts().index[0]
+    return options.index(value) if value in options else None
+
+
+def characteristics_form() -> dict | None:
+    issuer = st.selectbox(
+        "Émetteur (ticker)", sorted(real["issuer"].unique()), index=None, accept_new_options=True,
+        placeholder="Choisir ou saisir un émetteur",
+        help="Choisissez un émetteur de l'univers ou saisissez un nouveau ticker.",
+    )
+    known = real[real["issuer"] == issuer] if issuer else real.iloc[0:0]
+    if issuer and known.empty:
+        st.caption("Émetteur absent de l'univers : le cas sera traité comme complexe.")
+    elif issuer:
+        st.caption(f"Émetteur connu : {len(known)} obligation(s) dans l'univers. Seuls son secteur, son pays, "
+                   "son industrie et sa structure sont proposés ; le reste décrit l'obligation à estimer.")
+        with st.expander("Obligations de l'émetteur dans la base"):
+            columns = [c for c in ["isin", "rating", "seniority", "maturity_years", "currency", "callable",
+                                   "z_spread"] if c in known.columns]
+            st.dataframe(known[columns].sort_values("maturity_years"), hide_index=True, width="stretch")
+
+    sectors, countries = sorted(real["sector"].unique()), sorted(real["country"].unique())
+    # La clé dépend de l'émetteur : changer d'émetteur remet les champs à ses valeurs.
+    key = f"_{issuer}"
+    with st.form("bond"):
+        c1, c2, c3 = st.columns(3)
+        sector = c1.selectbox("Secteur", sectors, index=_most_common(known["sector"], sectors), key="sector" + key,
+                              placeholder="Choisir")
+        country = c2.selectbox("Pays", countries, index=_most_common(known["country"], countries),
+                               key="country" + key, placeholder="Choisir")
+        currencies = sorted(real["currency"].unique())
+        currency = c3.selectbox("Devise", currencies,
+                                index=currencies.index("EUR") if "EUR" in currencies else 0)
+        industry = structure = None
+        if "industry" in real.columns or "structure" in real.columns:
+            c4, c5 = st.columns(2)
+            if "industry" in real.columns:
+                industries = sorted(real["industry"].astype(str).unique())
+                industry = c4.selectbox("Industrie", industries, index=_most_common(known["industry"], industries),
+                                        key="industry" + key, placeholder="(inconnue)")
+            if "structure" in real.columns:
+                structures = sorted(real["structure"].astype(str).unique())
+                structure = c5.selectbox("Structure", structures,
+                                         index=_most_common(known["structure"], structures),
+                                         key="structure" + key, placeholder="(inconnue)")
+        c6, c7, c8 = st.columns(3)
+        rating = c6.selectbox("Notation", ["NR (non notée)"] + RATING_SCALE[:19], index=None,
+                              placeholder="Choisir")
+        seniority = c7.selectbox("Séniorité", list(SENIORITY_RANK),
+                                 index=list(SENIORITY_RANK).index("SENIOR_UNSECURED"))
+        maturity = c8.number_input("Maturité de calcul (ans)", min_value=0.1, max_value=50.0, value=None,
+                                   step=0.5, placeholder="ex. 5,0",
+                                   help="Jusqu'au call si l'obligation est cotée au call, sinon jusqu'à l'échéance.")
+        c9, c10, c11, c12 = st.columns(4)
+        coupon = c9.selectbox("Type de coupon", sorted(real["coupon_type"].unique()))
+        callable_ = c10.checkbox("Cotée au call", help="Call utile, plus d'un an avant l'échéance finale.")
+        green = c11.checkbox("Obligation verte")
+        bail_in = c12.checkbox("Bail-in")
+        esg = None
+        if "esg" in real.columns and real["esg"].notna().any():
+            esg_values = sorted(real["esg"].dropna().astype(str).unique())
+            esg = st.selectbox("Note ESG", ["(inconnue)"] + esg_values)
+            esg = None if esg == "(inconnue)" else esg
+        if not st.form_submit_button("Estimer", type="primary"):
+            return None
+    missing = [name for name, value in (("émetteur", issuer), ("secteur", sector), ("pays", country),
+                                        ("notation", rating), ("maturité", maturity)) if not value]
+    if missing:
+        st.error("À renseigner : " + ", ".join(missing) + ".")
+        return None
+    bond = {"issuer": issuer, "sector": sector, "country": country, "currency": currency,
+            "seniority": seniority, "maturity_years": maturity, "coupon_type": coupon, "callable": callable_,
+            "green": green, "bail_in": "Y" if bail_in else "N"}
+    for name, value in (("industry", industry), ("structure", structure), ("esg", esg)):
+        if value is not None:
+            bond[name] = value
+    if rating.startswith("NR"):
+        from bondalorians.data.fiche import impute_rating
+
+        bond["rating"], how = impute_rating(universe, {**bond, "rating": None})
+        st.info(f"Notation absente : {how} → {bond['rating']} retenue. Estimation fragile.")
+    else:
+        bond["rating"] = rating
+    return bond
+
+
+@st.cache_data(show_spinner=False, max_entries=200)
+def _estimate_fiche(text: str, version: str) -> dict:
+    return service.estimate_fiche(text)
+
+
+def fiche_mode() -> None:
+    files = st.file_uploader("Fiches obligataires (.md)", type=["md", "txt"], accept_multiple_files=True,
+                             help="Une ou plusieurs fiches au format « # Fiche Obligataire - … ».")
+    if not files:
+        st.caption(f"Les maturités sont comptées depuis la date de prix de la base : "
+                   f"{service.pricing_date().date()}.")
+        return
+    estimates, errors = [], []
+    with st.spinner(f"Estimation de {len(files)} fiche(s)…"):
+        for file in files:
+            try:
+                estimates.append((file.name, _estimate_fiche(file.getvalue().decode("utf-8"),
+                                                             service.estimator.model_version_)))
+            except (KeyError, ValueError) as error:
+                errors.append(f"{file.name} : {error}")
+    for error in errors:
+        st.error(error)
+    if not estimates:
+        return
+    summary = pd.DataFrame([{
+        "Fiche": e["fiche"].get("id"), "Obligation": e["fiche"].get("nomobligation"),
+        "Émetteur": e["bond"]["issuer"] + ("" if e["result"]["issuer_seen"] else " (inconnu)"),
+        "Notation": e["bond"]["rating"] + (" (déduite)" if str(e["bond"].get("rating_source")).startswith("déduite")
+                                           else ""),
+        "Séniorité": e["bond"]["seniority"], "Maturité (ans)": round(e["bond"]["maturity_years"], 1),
+        "Z-Spread juste (pb)": e["result"]["z_spread_bp"],
+        "Intervalle (pb)": "{:.0f} – {:.0f}".format(*e["result"]["interval_bp"]) if e["result"]["interval_bp"] else "",
+        "Confiance": e["result"]["confidence"].get("score"),
+        "Points d'attention": len(e["notes"]),
+    } for _, e in estimates])
+    st.dataframe(summary, hide_index=True, width="stretch")
+    st.download_button("Télécharger les explications (Markdown)", "\n\n---\n\n".join(
+        e["markdown"] for _, e in estimates), file_name="explications_fiches.md", mime="text/markdown")
+
+    names = [name for name, _ in estimates]
+    chosen = st.selectbox("Détail de la fiche", names,
+                          format_func=lambda n: dict(zip(names, summary["Fiche"]))[n] + f" · {n}")
+    estimate = dict(estimates)[chosen]
+    st.session_state["result"] = estimate["result"]
+    st.session_state["result_mode"] = "fiche"
+    for note in estimate["notes"]:
+        st.warning(note)
+    if estimate["observed"]:
+        st.info(f"Obligation déjà dans la base : Z-Spread observé {estimate['observed']['z_spread_bp']:.0f} pb "
+                "(non utilisé pour l'estimation).")
+    if estimate["sensitivity"]:
+        st.markdown("**Sensibilité à la notation (notation déduite)**")
+        st.dataframe(pd.DataFrame(estimate["sensitivity"]).rename(columns={
+            "rating": "Notation", "z_spread_bp": "Z-Spread (pb)", "retenue": "Retenue"}), hide_index=True)
+    st.divider()
+    show_result(estimate["result"])
+    with st.expander("Explication complète (Markdown)"):
+        st.markdown(estimate["markdown"])
+
 # --------------------------------------------------------------------- page
 st.title("Z-Spread juste d'une obligation")
 st.caption(
@@ -315,69 +467,26 @@ tab_estimate, tab_analysis, tab_backtest, tab_log = st.tabs(
 with tab_estimate:
     if "notice" in st.session_state:
         st.success(st.session_state.pop("notice"))
-    mode = st.radio("Obligation à estimer", ["Par ses caractéristiques", "Par son ISIN (déjà dans l'univers)"],
-                    horizontal=True)
+    mode = st.radio("Obligation à estimer", ["Depuis des fiches (.md)", "Par ses caractéristiques",
+                                             "Par son ISIN (déjà dans l'univers)"], horizontal=True)
     bond = None
-    if mode.startswith("Par son ISIN"):
+    if mode.startswith("Depuis des fiches"):
+        fiche_mode()
+    elif mode.startswith("Par son ISIN"):
         labels = dict(zip(real["isin"], real["issuer"] + " · " + real["rating"].astype(str)))
         isin = st.selectbox("ISIN", list(labels), format_func=lambda i: f"{i} — {labels[i]}")
         if st.button("Estimer", type="primary"):
             bond = isin
     else:
-        # Hors du formulaire : le choix de l'émetteur préremplit son secteur et son pays.
-        issuer = st.selectbox(
-            "Émetteur", sorted(real["issuer"].unique()), accept_new_options=True,
-            help="Choisissez un émetteur de l'univers ou saisissez un nouveau nom.",
-        )
-        known = real[real["issuer"] == issuer]
-        sectors, countries = sorted(real["sector"].unique()), sorted(real["country"].unique())
-        if known.empty:
-            st.caption("Émetteur absent de l'univers : le cas sera traité comme complexe.")
-        else:
-            st.caption(f"Émetteur connu : {len(known)} obligation(s) dans l'univers.")
-        with st.form("bond"):
-            c2, c3 = st.columns(2)
-            sector = c2.selectbox(
-                "Secteur", sectors, index=0 if known.empty else sectors.index(known["sector"].iat[0]),
-            )
-            country = c3.selectbox(
-                "Pays", countries, index=0 if known.empty else countries.index(known["country"].iat[0]),
-            )
-            c4, c5, c6 = st.columns(3)
-            currency = c4.selectbox("Devise", sorted(real["currency"].unique()))
-            rating = c5.selectbox("Notation", RATING_SCALE[:19], index=8)
-            seniority = c6.selectbox(
-                "Séniorité", list(SENIORITY_RANK),
-                index=list(SENIORITY_RANK).index("SENIOR_UNSECURED"),
-            )
-            c7, c8, c9 = st.columns(3)
-            maturity = c7.number_input("Maturité résiduelle (ans)", min_value=0.1, max_value=50.0, value=5.0, step=0.5)
-            coupon = c8.selectbox("Type de coupon", sorted(real["coupon_type"].unique()))
-            callable_ = c9.checkbox("Remboursable par anticipation")
-            esg = None
-            if "esg" in real.columns and real["esg"].notna().any():
-                # Note ESG (si la base en contient une) : n'agit que si peer_curve.extra contient « esg ».
-                esg_values = sorted(real["esg"].dropna().astype(str).unique())
-                esg = st.selectbox("Note ESG", ["(inconnue)"] + esg_values)
-                esg = None if esg == "(inconnue)" else esg
-            if st.form_submit_button("Estimer", type="primary"):
-                if not issuer:
-                    st.error("Indiquez un émetteur.")
-                else:
-                    bond = {
-                        "issuer": issuer, "sector": sector, "country": country, "currency": currency,
-                        "rating": rating, "seniority": seniority, "maturity_years": maturity,
-                        "coupon_type": coupon, "callable": callable_,
-                    }
-                    if esg is not None:
-                        bond["esg"] = esg
+        bond = characteristics_form()
     if bond is not None:
         try:
+            st.session_state["result_mode"] = mode
             st.session_state["result"] = service.estimate(bond)
         except (KeyError, ValueError) as error:
             st.session_state.pop("result", None)
             st.error(f"Estimation impossible : {error}")
-    if "result" in st.session_state:
+    if "result" in st.session_state and st.session_state.get("result_mode") == mode:
         st.divider()
         show_result(st.session_state["result"])
         feedback_form(st.session_state["result"])

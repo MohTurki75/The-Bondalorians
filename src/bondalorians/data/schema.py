@@ -112,6 +112,10 @@ def prepare(frame: pd.DataFrame, require_target: bool) -> pd.DataFrame:
             df[column] = df[column].astype("object").where(df[column].notna(), "NA").astype(str)
     if "green" in df.columns:
         df["green_flag"] = df["green"].map(lambda v: float(bool(v)) if pd.notna(v) else np.nan)
+    if "bail_in" in df.columns:
+        text = df["bail_in"].str.strip().str.upper()
+        df["bailin_flag"] = np.where(text.isin(["Y", "YES", "OUI", "TRUE"]), 1.0,
+                                     np.where(text.isin(["N", "NO", "NON", "FALSE", "NOT APPLICABLE"]), 0.0, np.nan))
     if "structure" in df.columns:
         # Holdco : subordination structurelle (dette de la holding, payée après celle des filiales).
         text = df["structure"].str.lower()

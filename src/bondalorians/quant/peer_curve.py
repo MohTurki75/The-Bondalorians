@@ -39,10 +39,12 @@ GROUP_LABELS = {
     "vert": "Obligation verte",
     "holdco": "Dette de holding",
     "call": "Call avant l'échéance",
+    "bailin": "Dette bail-in",
 }
 # Variables supplémentaires possibles (jour 1), activées par `extra` : colonne -> transformation.
 EXTRA_FEATURES = {"esg": "esg_score", "age": "age_years", "duration": "duration", "vert": "green_flag",
-                  "holdco": "holdco_flag", "call": "call_ratio"}
+                  "holdco": "holdco_flag", "call": "call_ratio",
+                  "bailin": "bailin_flag"}
 
 
 class PeerCurve:
@@ -127,8 +129,8 @@ class PeerCurve:
         x = self._design(pd.DataFrame([target]))[0] * self.coef_
         out = {}
         for group in GROUP_LABELS:
-            if group not in self.group_means_:
-                continue
+            if group not in self.group_means_ or group not in self.groups_:
+                continue  # variable absente du modèle (ESG non activé, pas d'encours…) : pas de ligne à zéro
             total = sum(x[i] for i, g in enumerate(self.groups_) if g == group)
             out[group] = float(total - self.group_means_[group])
         return out

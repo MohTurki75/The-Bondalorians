@@ -32,7 +32,8 @@ def build_waterfall(
         steps.append({"step": label, "delta_bp": after - before, "cumulative_bp": after})
 
     for group, label in GROUP_LABELS.items():
-        add(label, group_contributions.get(group, 0.0))
+        if group in group_contributions:  # variable absente du modèle : pas de ligne à zéro
+            add(label, group_contributions[group])
     # Une étape sans libellé (sans objet : émetteur inconnu, courbe seule retenue) est omise.
     if issuer_label is not None:
         add(issuer_label, issuer_term_log)
