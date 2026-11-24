@@ -93,8 +93,9 @@ def fiche_to_bond(raw: dict, as_of, universe: pd.DataFrame | None = None) -> tup
             notes.append("« CALLABLE » mais échéance de calcul = échéance finale : call de fin de vie (au pair ou "
                          "make-whole), sans effet sur le spread ; traitée comme non remboursable.")
     if str(raw.get("bondbailin") or "").upper() in {"Y", "YES", "OUI", "TRUE"}:
-        notes.append("Dette « bail-in » (absorbe les pertes en résolution bancaire) : proche d'une senior "
-                     "non préférée ; la base ne l'ajuste que si la variable bail-in est activée.")
+        notes.append("Bail-in « Y » : dette absorbant les pertes en résolution bancaire. Ce n'est pas un rang : la "
+                     "senior préférée d'une banque l'est aussi. Le rang vient de « Rang Seniorité » (« Senior Bail-In » "
+                     "= senior non préférée).")
     if raw.get("niveauzspread") is not None:
         notes.append(f"La fiche donne un Z-Spread ({raw['niveauzspread']}) : il n'est pas utilisé pour l'estimation.")
 
