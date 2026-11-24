@@ -93,6 +93,39 @@ Elle écrit `rapports/fiche_agents.json` (à donner aux agents) et
 `--as-of` doit être la date des spreads de la base : c'est elle qui sert à
 calculer les maturités et l'ancienneté.
 
+### Format d'export Bloomberg (base du hackathon)
+
+Le fichier à colonnes `pricing_date, id, ticker, nomemetteur, …, niveauzspread, ratingmoyen,
+prochainedatecall` est reconnu seul : la correspondance est fixe (`config/schema_map_bloomberg.yaml`).
+
+    python scripts/jour1.py --csv base.csv                     # estime sur la date la plus récente
+    python scripts/jour1.py --csv base.csv --date 2026-03-16   # ou sur une date choisie
+
+Ce que fait la lecture, et pourquoi :
+
+| Colonne | Traitement | Raison |
+|---|---|---|
+| `ticker` | émetteur | `nomemetteur` contient le nom de l'obligation (« RZR 1 ⅜ 11/02/36 ») |
+| `pricing_date` | une seule date pour estimer ; l'autre pour la dynamique | la même obligation aux deux dates serait un comparable presque parfait (fuite) |
+| `datematurit_pricingobligation` | maturité, calculée depuis la date de prix de la ligne | échéance de calcul du Z-Spread |
+| `datematurit`, `prochainedatecall`, `typematurit` | remboursable seulement si le call tombe plus d'un an avant l'échéance finale ; part de vie avant le call | « CALLABLE » désigne souvent un simple call au pair trois mois avant l'échéance |
+| `nomsecteur` | secteur (courbe des pairs) | une dizaine de valeurs : assez d'obligations par case |
+| `industrieemetteur` | industrie (motifs, dynamique) | trop fin pour la régression |
+| `structureaffaire` | holdco / opco, variable candidate | subordination structurelle |
+| `greenbond` | variable candidate | prime verte éventuelle |
+| `dateemission` | ancienneté, variable candidate | |
+| `durationbid` | candidate, signalée fuite probable | calculée au rendement de marché |
+| `prixbid`, `rendement`, `discountmargenextcall` | contrôles seulement | liés mécaniquement au spread |
+| `niveaumid`, `nomgroupeindustrie`, `classificationsecteuremetteur`, `premieredatesettlement` | ignorées | sens incertain ou redondant |
+
+Les dates au format JavaScript (« Sun Nov 02 2036 00:00:00 GMT+0000 (…) »), les dates `20260316` et les
+`#N/A` sont lus directement.
+
+Sorties : `data/base_jour1.csv` (une date, pour l'interface et le backtest) et
+`data/base_jour1_historique.csv` (toutes les dates). La section 7 du script mesure le mouvement du
+marché entre les deux dates (par notation, séniorité, secteur, maturité), la part expliquée par le
+segment, les obligations atypiques, et la stabilité de la courbe des pairs d'une date à l'autre.
+
 ### Préparer PostgreSQL (jour 1)
 
 1. Créer les référentiels et les tables de journal, avec un compte autorisé à écrire :

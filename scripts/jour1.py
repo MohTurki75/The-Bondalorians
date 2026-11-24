@@ -5,8 +5,12 @@ Depuis un fichier :
 Depuis PostgreSQL :
     python scripts/jour1.py --dsn "host=... dbname=... user=..." --query "SELECT * FROM schema.table"
 
-Options : --as-of 2026-11-24 (date de valorisation, pour les maturités et l'ancienneté),
+Options : --as-of 2026-11-24 (date de valorisation si la base n'a pas de colonne de date de prix),
+          --date 2026-03-16 (date de prix à estimer quand la base en a plusieurs ; défaut : la plus récente),
           --sep ";" (séparateur CSV), --ecrire (écrit config/schema_map.yaml, l'ancien gardé en .bak).
+
+Format d'export Bloomberg du hackathon (pricing_date, ticker, nomsecteur, niveauzspread…) : reconnu
+automatiquement, correspondance fixe (voir config/schema_map_bloomberg.yaml).
 
 Étapes :
  1. lecture brute et aperçu des colonnes ;
@@ -14,8 +18,10 @@ Options : --as-of 2026-11-24 (date de valorisation, pour les maturités et l'anc
  3. traduction des valeurs (séniorité, type de coupon) et notations non reconnues ;
  4. application, nettoyage, profil de la base (lignes écartées, obligations par émetteur…) ;
  5. impact des colonnes ESG, date d'émission, duration ; contrôle prix et rendement ;
- 6. écriture de data/base_jour1.csv au schéma interne, utilisable par l'interface :
+ 6. écriture de data/base_jour1.csv au schéma interne (une seule date de prix), utilisable par l'interface :
         BONDALORIANS_CSV=data/base_jour1.csv scripts/start.sh
+    et, si la base a plusieurs dates, data/base_jour1_historique.csv (toutes les dates) ;
+ 7. si deux dates : mouvement du marché entre elles, stabilité de la courbe des pairs.
 """
 
 import argparse
@@ -26,7 +32,7 @@ import pandas as pd
 
 from bondalorians.analysis.extra_columns import evaluate_extra_columns
 from bondalorians.data.automap import propose_schema_map, write_schema_map
-from bondalorians.data.repository import apply_schema_map
+from bondalorians.data.repository import apply_schema_map, pricing_dates, select_pricing_date
 from bondalorians.data.schema import prepare
 
 parser = argparse.ArgumentParser(description="Lecture de la base du jour 1.")
@@ -35,6 +41,7 @@ parser.add_argument("--sep", default=None)
 parser.add_argument("--dsn")
 parser.add_argument("--query")
 parser.add_argument("--as-of", dest="as_of")
+parser.add_argument("--date", help="date de prix à estimer (défaut : la plus récente)")
 parser.add_argument("--ecrire", action="store_true", help="écrire config/schema_map.yaml")
 parser.add_argument("--sortie", default="data/base_jour1.csv")
 args = parser.parse_args()
@@ -49,7 +56,8 @@ def title(text: str) -> None:
 
 # 1. Lecture brute.
 if args.csv:
-    raw = pd.read_csv(args.csv, sep=args.sep, engine="python")
+    raw = pd.read_csv(args.csv, sep=args.sep, engine="python", encoding="utf-8-sig",
+                      dtype={"pricing_date": str}, keep_default_na=True, na_values=["#N/A", "#N/A N/A"])
 elif args.dsn and args.query:
     import psycopg
 
@@ -89,9 +97,14 @@ if args.ecrire:
     print(f"\nÉcrit : {path} (ancienne version dans {path}.bak)")
 
 # 4. Application et profil.
-canonical = apply_schema_map(raw, proposal["schema_map"])
+history = apply_schema_map(raw, proposal["schema_map"])
+canonical, chosen_date = select_pricing_date(history, args.date)
 prepared = prepare(canonical, require_target=True)
 title("4. Profil de la base au schéma interne")
+counts = pricing_dates(history)
+if len(counts) > 1:
+    print("Dates de prix :", ", ".join(f"{d.date()} ({n} lignes)" for d, n in counts.items()),
+          f"→ estimation sur le {chosen_date.date()} uniquement (l'autre date sert à la dynamique, section 7).")
 print(f"Lignes gardées : {len(prepared)} ; écartées : {prepared.attrs['dropped']} "
       "(notation inconnue, maturité ou spread non positif).")
 per_issuer = prepared.groupby("issuer").size()
@@ -99,7 +112,14 @@ print(f"Émetteurs : {len(per_issuer)} ; obligations par émetteur : médiane {p
       f"{(per_issuer == 1).mean():.0%} n'en ont qu'une, {(per_issuer >= 3).mean():.0%} en ont au moins 3.")
 print("Z-Spread (pb) :", prepared["z_spread"].describe(percentiles=[.01, .25, .5, .75, .99]).round(1).to_dict())
 print("Maturité (ans) :", prepared["maturity_years"].describe(percentiles=[.5]).round(2).to_dict())
-for column in ("rating", "seniority", "currency", "sector", "coupon_type", "callable"):
+if "callable_raw" in prepared.columns:
+    print(f"Remboursables : {prepared['callable_raw'].mean():.0%} déclarées « CALLABLE », dont "
+          f"{prepared['callable'].mean():.0%} avec un call utile (plus d'un an avant l'échéance finale) ; "
+          "les autres n'ont qu'un call au pair juste avant l'échéance et sont traitées comme non remboursables.")
+for column in ("rating", "seniority", "currency", "sector", "industry", "structure", "coupon_type", "callable",
+               "green"):
+    if column not in prepared.columns:
+        continue
     counts = prepared[column].value_counts()
     print(f"{column} ({len(counts)}) :", ", ".join(f"{k} {v}" for k, v in counts.head(12).items()))
 
@@ -118,3 +138,23 @@ canonical.to_csv(output, index=False)
 title("6. Fichier prêt pour l'interface")
 print(f"{output} ({len(canonical)} lignes). Pour lancer l'interface sur ces données :")
 print(f"    BONDALORIANS_CSV={output} scripts/start.sh")
+if len(counts) > 1:
+    history_path = output.with_name(output.stem + "_historique" + output.suffix)
+    history.to_csv(history_path, index=False)
+    print(f"{history_path} ({len(history)} lignes, toutes les dates) : pour la dynamique uniquement.")
+
+    # 7. Dynamique entre les deux dates.
+    from bondalorians.analysis.dynamics import curve_stability, market_dynamics
+
+    title("7. Mouvement du marché entre les deux dates")
+    dynamics = market_dynamics(history)
+    for finding in dynamics["findings"]:
+        print("-", finding)
+    for dim in ("notation", "seniorite", "secteur", "maturite"):
+        if dim in dynamics["tables"]:
+            print()
+            print(dynamics["tables"][dim].to_string(index=False))
+    if len(dynamics["outliers"]):
+        print("\nObligations atypiques :")
+        print(dynamics["outliers"].to_string(index=False))
+    print("\n-", curve_stability(history)["constat"])

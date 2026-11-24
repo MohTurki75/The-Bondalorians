@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from bondalorians.data.schema import RATING_SCALE
+from bondalorians.data.schema import RATING_SCALE, to_notch
 
 SECTORS = {
     "Banques": 0.05, "Assurance": 0.10, "Services publics": -0.10, "Télécoms": 0.00,
@@ -169,3 +169,86 @@ def make_raw_database(n_bonds: int = 3000, seed: int = 11, as_of: str = "2026-11
         "Duration modifiée": np.round(duration, 3), "Prix": np.round(price, 3),
         "Rendement (%)": np.round(ytm, 3), "Z-Spread (pb)": np.round(spread, 1),
     })
+
+
+# ------------------------------------------------ format d'export Bloomberg (hackathon)
+BICS = {  # secteur synthétique -> (nomsecteur, industrieemetteur possibles)
+    "Santé": ("Health Care", ["Pharmaceuticals", "Medical Equipment"]),
+    "Énergie": ("Energy", ["Oil&Gas", "Pipelines"]),
+    "Industrie": ("Industrials", ["Commercial Services", "Engineering&Construction"]),
+    "Télécoms": ("Communications", ["Telecommunications", "Media"]),
+    "Services publics": ("Utilities", ["Electric", "Gas"]),
+    "Technologie": ("Technology", ["Semiconductors", "Software"]),
+    "Consommation": ("Consumer Discretionary", ["Retail", "Auto Manufacturers"]),
+    "Banques": ("Financials", ["Banks", "Diversified Finan Serv"]),
+    "Immobilier": ("Real Estate", ["REITS", "Real Estate"]),
+}
+_FRACTIONS = {0: "", 125: " ⅛", 250: " ¼", 375: " ⅜", 500: " ½", 625: " ⅝", 750: " ¾", 875: " ⅞"}
+
+
+def _js_date(day: pd.Timestamp) -> str:
+    if pd.isna(day):
+        return "#N/A"
+    return day.strftime("%a %b %d %Y") + " 00:00:00 GMT+0000 (temps universel coordonné)"
+
+
+def make_bloomberg_export(n_bonds: int = 2000, n_issuers: int = 300, seed: int = 5,
+                          dates: tuple[str, str] = ("20251215", "20260316")) -> pd.DataFrame:
+    """Fichier factice au format exact de la base du hackathon : deux dates de prix, dates JavaScript,
+    « #N/A », ticker = émetteur, `nomemetteur` = nom de l'obligation, classification à la Bloomberg.
+
+    Le spread de la seconde date = spread de la première × mouvement de marché par notation × bruit.
+    """
+    rng = np.random.default_rng(seed)
+    base = make_universe(n_bonds=n_bonds, n_issuers=n_issuers, seed=seed, profile="realiste")
+    tickers = {name: "".join(rng.choice(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), size=rng.integers(2, 6)))
+               + str(i % 10) for i, name in enumerate(base["issuer"].unique())}
+    issuers = base["issuer"].unique()
+    structure = dict(zip(issuers, rng.choice(["Opco", "Holdco", "Insufficient Information"], len(issuers),
+                                             p=[0.55, 0.3, 0.15])))
+    industry = {name: rng.integers(0, 2) for name in issuers}
+    first, last = pd.Timestamp(dates[0]), pd.Timestamp(dates[1])
+    rows = []
+    notch = base["rating"].map(to_notch).to_numpy()
+    # Mouvement du marché entre les deux dates : le haut rendement bouge plus.
+    move = np.exp(rng.normal(0, 0.03, len(base)) + np.where(notch > 10, 0.08, 0.03))
+    green = rng.random(len(base)) < 0.15
+    coupons = np.round(rng.uniform(0.5, 6, len(base)) * 8) / 8
+    for i, bond in enumerate(base.itertuples()):
+        maturity = last + pd.Timedelta(days=int(bond.maturity_years * 365.25))
+        issue = first - pd.Timedelta(days=int(rng.uniform(0.1, 8) * 365.25))
+        callable_type = "CALLABLE" if (bond.callable or rng.random() < 0.6) else "AT MATURITY"
+        if bond.callable:  # call réel, plusieurs années avant l'échéance
+            call = maturity - pd.Timedelta(days=int(rng.uniform(1.5, 5) * 365.25))
+        elif callable_type == "CALLABLE":  # simple call au pair trois mois avant l'échéance
+            call = maturity - pd.Timedelta(days=91)
+        else:
+            call = pd.NaT
+        ticker = tickers[bond.issuer]
+        whole, frac = divmod(int(round(coupons[i] * 1000)), 1000)
+        name = f"{ticker} {whole}{_FRACTIONS.get(frac, '')} {maturity.strftime('%m/%d/%y')}"
+        sector, industries = BICS.get(bond.sector, ("Industrials", ["Industrial Other", "Industrial Other"]))
+        for day, spread in ((first, bond.z_spread), (last, bond.z_spread * move[i])):
+            years = (maturity - day).days / 365.25
+            ytm = 2.3 + 0.1 * years + spread / 100
+            rows.append({
+                "pricing_date": day.strftime("%Y%m%d"), "id": f"{ticker[:2]}{100000 + i} Corp",
+                "nomobligation": name, "ticker": ticker, "nomemetteur": name, "paysemetteur": bond.country,
+                "industrieemetteur": industries[industry[bond.issuer]],
+                "classificationsecteuremetteur": industries[industry[bond.issuer]],
+                "classificationsecteuremetteurniv1": "Financial" if sector == "Financials" else "Corporate",
+                "nomsecteur": sector, "nomgroupeindustrie": industries[industry[bond.issuer]],
+                "structureaffaire": structure[bond.issuer],
+                "datematurit_pricingobligation": _js_date(maturity), "datematurit": _js_date(maturity),
+                "rangseniorit_obligation": RAW_SENIORITY.get(bond.seniority, "Sr Unsecured"),
+                "typematurit": callable_type, "dateemission": _js_date(issue),
+                "niveaumid": int(rng.integers(20, 300)), "devise": bond.currency,
+                "typecoupon": "FLOATING" if bond.coupon_type == "FLOATING" else "FIXED",
+                "bondbailin": "Not Applicable", "premieredatesettlement": _js_date(issue),
+                "greenbond": str(bool(green[i])).lower(), "socialbond": "false",
+                "niveauzspread": "#N/A" if rng.random() < 0.01 else round(spread, 8),
+                "rendement": ytm, "prixbid": round(100 + (coupons[i] - ytm) * min(years, 10), 5),
+                "durationbid": round(years / (1 + ytm / 100), 6), "discountmargenextcall": "#N/A",
+                "ratingmoyen": bond.rating, "prochainedatecall": _js_date(call),
+            })
+    return pd.DataFrame(rows)

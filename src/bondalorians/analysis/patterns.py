@@ -33,7 +33,8 @@ from bondalorians.analysis.common import BUCKET_ORDER, rating_bucket
 DIMENSIONS = {  # nom -> libellé ; calculées par `_segment_frame`
     "notation": "Notation", "seniorite": "Séniorité", "secteur": "Secteur", "devise": "Devise", "pays": "Pays",
     "maturite": "Maturité", "taille": "Taille", "remboursable": "Remboursable", "coupon": "Type de coupon",
-    "esg": "ESG", "anciennete": "Ancienneté",
+    "esg": "ESG", "anciennete": "Ancienneté", "industrie": "Industrie", "structure": "Structure (holdco / opco)",
+    "vert": "Obligation verte",
 }
 MATURITY_BINS = [0, 3, 5, 7, 10, 15, np.inf]
 MATURITY_LABELS = ["< 3 ans", "3-5 ans", "5-7 ans", "7-10 ans", "10-15 ans", "> 15 ans"]
@@ -77,6 +78,11 @@ def _segment_frame(df: pd.DataFrame, edges: dict | None = None) -> pd.DataFrame:
         out["esg"] = _tier(df["esg_score"], edges["esg"], ["ESG faible", "ESG moyen", "ESG élevé"]).to_numpy()
     if "anciennete" in edges and "age_years" in df.columns:
         out["anciennete"] = pd.cut(df["age_years"], AGE_BINS, labels=AGE_LABELS).astype(str)
+    for column, name in (("industry", "industrie"), ("structure", "structure")):
+        if column in df.columns:
+            out[name] = df[column].astype(str)
+    if "green_flag" in df.columns:
+        out["vert"] = np.where(df["green_flag"] == 1, "oui", "non")
     return out
 
 

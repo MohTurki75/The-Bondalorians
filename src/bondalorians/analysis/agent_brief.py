@@ -67,7 +67,8 @@ def build_brief(estimator, readings: pd.DataFrame | None = None, include_extra: 
     if include_extra:
         from bondalorians.analysis.extra_columns import evaluate_extra_columns
 
-        if any(c in df.columns for c in ("esg_score", "age_years", "duration")):
+        if any(c in df.columns for c in ("esg_score", "age_years", "duration", "green_flag", "holdco_flag",
+                                          "call_ratio")):
             result = evaluate_extra_columns(df)
             extra = {"recommandees": result["recommended"], "constats": result["findings"],
                      "detail": result["tables"]["variables"]}
@@ -157,6 +158,11 @@ def _bond_segments(brief: dict, bond: dict) -> dict:
         values["esg"] = _tier([bond["esg_score"]], edges["esg"], ["ESG faible", "ESG moyen", "ESG élevé"]).iloc[0]
     if "anciennete" in edges and bond.get("age_years") is not None and not pd.isna(bond.get("age_years")):
         values["anciennete"] = str(pd.cut([float(bond["age_years"])], AGE_BINS, labels=AGE_LABELS)[0])
+    for column, name in (("industry", "industrie"), ("structure", "structure")):
+        if bond.get(column) is not None:
+            values[name] = str(bond[column])
+    if bond.get("green_flag") is not None and not pd.isna(bond.get("green_flag")):
+        values["vert"] = "oui" if bond["green_flag"] == 1 else "non"
     return values
 
 

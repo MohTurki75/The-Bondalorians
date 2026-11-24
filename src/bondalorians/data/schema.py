@@ -104,9 +104,18 @@ def prepare(frame: pd.DataFrame, require_target: bool) -> pd.DataFrame:
     # Colonnes supplémentaires éventuelles (jour 1) : converties en nombres si présentes.
     if "esg" in df.columns:
         df["esg_score"] = esg_to_score(df["esg"])
-    for column in ("age_years", "duration", "price", "ytm"):
+    for column in ("age_years", "duration", "price", "ytm", "call_ratio", "years_to_call"):
         if column in df.columns:
             df[column] = pd.to_numeric(df[column], errors="coerce")
+    for column in ("industry", "sector_family", "structure", "bail_in"):
+        if column in df.columns:
+            df[column] = df[column].astype("object").where(df[column].notna(), "NA").astype(str)
+    if "green" in df.columns:
+        df["green_flag"] = df["green"].map(lambda v: float(bool(v)) if pd.notna(v) else np.nan)
+    if "structure" in df.columns:
+        # Holdco : subordination structurelle (dette de la holding, payée après celle des filiales).
+        text = df["structure"].str.lower()
+        df["holdco_flag"] = np.where(text.str.contains("holdco"), 1.0, np.where(text.str.contains("opco"), 0.0, np.nan))
     if "obs_weight" not in df.columns:
         df["obs_weight"] = 1.0
     df.attrs["dropped"] = dropped

@@ -76,7 +76,8 @@ Serveur MCP sur PostgreSQL (jour 1) :
 ## Le jour 1
 
 Le seul fichier à adapter au schéma réel est `config/schema_map.yaml`.
-`scripts/jour1.py` le propose automatiquement (voir docs/LANCEMENT.md). Les
+`scripts/jour1.py` le propose automatiquement (voir docs/LANCEMENT.md) ; l'export Bloomberg à deux
+dates de prix est reconnu tel quel (`config/schema_map_bloomberg.yaml`). Les
 paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 
 ## Structure

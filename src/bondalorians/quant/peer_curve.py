@@ -36,9 +36,13 @@ GROUP_LABELS = {
     "esg": "ESG",
     "age": "Ancienneté de l'émission",
     "duration": "Duration",
+    "vert": "Obligation verte",
+    "holdco": "Dette de holding",
+    "call": "Call avant l'échéance",
 }
 # Variables supplémentaires possibles (jour 1), activées par `extra` : colonne -> transformation.
-EXTRA_FEATURES = {"esg": "esg_score", "age": "age_years", "duration": "duration"}
+EXTRA_FEATURES = {"esg": "esg_score", "age": "age_years", "duration": "duration", "vert": "green_flag",
+                  "holdco": "holdco_flag", "call": "call_ratio"}
 
 
 class PeerCurve:

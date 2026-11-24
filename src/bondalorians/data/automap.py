@@ -30,18 +30,35 @@ from bondalorians.data.schema import to_notch
 
 # Champ interne -> synonymes (après normalisation : minuscules, sans accents ni ponctuation).
 SYNONYMS: dict[str, list[str]] = {
-    "isin": ["isin", "isincode", "codeisin", "id", "bondid", "securityid", "cusip", "ticker"],
-    "issuer": ["issuer", "issuername", "emetteur", "nomemetteur", "issuerid", "company", "obligor", "name", "entity"],
-    "sector": ["sector", "secteur", "industry", "industrie", "gicssector", "bicssector", "industrysector"],
+    "isin": ["isin", "isincode", "codeisin", "id", "bondid", "securityid", "cusip", "idbb", "figi"],
+    # Le ticker Bloomberg identifie l'émetteur ; une colonne « nom émetteur » contient parfois le nom de
+    # l'obligation (« RZR 1 ⅜ 11/02/36 ») : le contenu tranche (voir content_score).
+    "issuer": ["issuer", "issuername", "emetteur", "nomemetteur", "issuerid", "company", "obligor", "name", "entity",
+               "ticker", "issuerticker", "tickeremetteur"],
+    "sector": ["sector", "secteur", "nomsecteur", "gicssector", "bicssector", "industrysector", "bicslevel1"],
+    "industry": ["industry", "industrie", "industrieemetteur", "industrygroup", "nomgroupeindustrie", "bicslevel2",
+                 "subindustry", "sousindustrie"],
+    "sector_family": ["classificationsecteuremetteurniv1", "bclass1", "bclasslevel1", "assetclass", "famille",
+                      "classe"],
+    "structure": ["structureaffaire", "structure", "holdcoopco", "capitalstructure", "businessstructure"],
+    "pricing_date": ["pricingdate", "datepricing", "asofdate", "datevalo", "datevalorisation", "date", "dateprix",
+                     "valuationdate"],
     "country": ["country", "pays", "countryofrisk", "countryofdomicile", "domicile", "risk_country"],
     "currency": ["currency", "devise", "ccy", "crncy", "monnaie"],
     "rating": ["rating", "notation", "compositerating", "creditrating", "bbgcomposite", "ratingsp", "sprating",
                "moodysrating", "fitchrating", "note", "avgrating", "rtg"],
     "seniority": ["seniority", "seniorite", "rank", "paymentrank", "ranking", "rang", "debttype", "capitalrank"],
     "coupon_type": ["coupontype", "typecoupon", "cpntype", "coupon_type", "rateType", "fixedfloat", "typetaux"],
-    "callable": ["callable", "iscallable", "remboursable", "callflag", "call", "optionality", "calltype"],
+    "callable": ["callable", "iscallable", "remboursable", "callflag", "call", "optionality", "calltype",
+                 "typematurit", "maturitytype", "mtytyp"],
+    "green": ["greenbond", "green", "vert", "obligationverte", "greenflag"],
+    "social": ["socialbond", "social"],
+    "bail_in": ["bondbailin", "bailin", "bailinbond"],
+    # Échéance de calcul (« workout », date de call si l'obligation est cotée au call) : c'est celle du Z-Spread.
     "maturity_date": ["maturity", "maturitydate", "echeance", "dateecheance", "dateofmaturity", "maturitydt",
-                      "finalmaturity", "redemptiondate"],
+                      "redemptiondate", "datematuritpricingobligation", "workoutdate", "maturitepricing"],
+    "final_maturity_date": ["datematurit", "finalmaturity", "finalmaturitydate", "echeancefinale", "legalmaturity"],
+    "call_date": ["prochainedatecall", "nextcalldate", "nextcall", "calldate", "dateprochaincall", "firstcalldate"],
     "maturity_years": ["maturityyears", "yearstomaturity", "ttm", "timetomaturity", "residualmaturity",
                        "maturiteresiduelle", "dureeresiduelle", "maturityinyears"],
     "amount_outstanding": ["amountoutstanding", "outstanding", "amtoutstanding", "encours", "notional",
@@ -51,14 +68,28 @@ SYNONYMS: dict[str, list[str]] = {
     "esg": ["esg", "esgscore", "esgrating", "noteesg", "msciesg", "esgrisk", "sustainalytics", "scoreesg"],
     "issue_date": ["issuedate", "dateemission", "dateofissue", "issue", "emission", "firstsettle", "issuedt",
                    "settlementdate"],
-    "duration": ["duration", "modifiedduration", "modduration", "durationmodifiee", "effduration",
+    "duration": ["duration", "durationbid", "modifiedduration", "modduration", "durationmodifiee", "effduration",
                  "effectiveduration", "spreadduration", "dur"],
-    "price": ["price", "prix", "cleanprice", "dirtyprice", "px", "pxlast", "midprice", "cours"],
+    "price": ["price", "prix", "cleanprice", "dirtyprice", "px", "pxlast", "midprice", "cours", "prixbid", "pxbid"],
     "ytm": ["ytm", "yield", "yieldtomaturity", "rendement", "taux", "yld", "yieldtoworst", "ytw"],
+    "discount_margin": ["discountmargenextcall", "discountmargin", "dm", "margeactualisee"],
+}
+# Format d'export Bloomberg connu (base du hackathon) : correspondance fixe, plus sûre que la devinette.
+PRESETS: dict[str, dict[str, str]] = {
+    "bloomberg_fr": {
+        "pricing_date": "pricing_date", "isin": "id", "issuer": "ticker", "sector": "nomsecteur",
+        "industry": "industrieemetteur", "sector_family": "classificationsecteuremetteurniv1",
+        "structure": "structureaffaire", "country": "paysemetteur", "currency": "devise", "rating": "ratingmoyen",
+        "seniority": "rangseniorit_obligation", "coupon_type": "typecoupon", "callable": "typematurit",
+        "maturity_date": "datematurit_pricingobligation", "final_maturity_date": "datematurit",
+        "call_date": "prochainedatecall", "issue_date": "dateemission", "z_spread": "niveauzspread",
+        "green": "greenbond", "social": "socialbond", "bail_in": "bondbailin", "duration": "durationbid",
+        "price": "prixbid", "ytm": "rendement", "discount_margin": "discountmargenextcall",
+    },
 }
 REQUIRED = ["issuer", "rating", "seniority", "currency", "z_spread"]
 # Le prix et le rendement sont liés mécaniquement au spread : contrôles seulement, jamais variables.
-CONTROL_ONLY = ["price", "ytm"]
+CONTROL_ONLY = ["price", "ytm", "discount_margin"]
 
 SENIORITY_RULES = [  # (motif, valeur interne) — testés dans l'ordre
     (r"\bat\s*1\b|additional\s*tier|addtl|\bat1\b|coco|contingent", "AT1"),
@@ -77,6 +108,7 @@ COUPON_RULES = [
     (r"zero|zéro|\bzc\b|discount", "ZERO"),
     (r"fix|fixe|fixed|step|bullet", "FIXED"),
 ]
+BOND_NAME = r"[\d⅛¼⅜½⅝¾⅞]\S*\s+\d{1,2}/\d{1,2}/\d{2,4}|\bPERP\b"
 MSCI_ESG = {"AAA": 7, "AA": 6, "A": 5, "BBB": 4, "BB": 3, "B": 2, "CCC": 1}
 
 
@@ -117,7 +149,13 @@ def content_score(field: str, series: pd.Series) -> float:
         letters = sample.astype(str).str.upper().str.strip().isin(MSCI_ESG).mean()
         scores = numeric.between(0, 100).mean() if share_numeric > 0.9 else 0.0
         return float(max(letters, scores * 0.8))
-    if field in ("maturity_date", "issue_date"):
+    if field in ("green", "social"):
+        text = sample.astype(str).str.strip().str.lower()
+        return float(text.isin(["true", "false", "1", "0", "y", "n", "yes", "no", "oui", "non"]).mean())
+    if field == "pricing_date":
+        parsed = _dates(sample.astype(str))
+        return float(parsed.notna().mean() * (series.nunique() <= 30))
+    if field in ("maturity_date", "issue_date", "final_maturity_date", "call_date"):
         parsed = _dates(sample)
         return float(parsed.notna().mean())
     if field == "z_spread":
@@ -139,7 +177,8 @@ def content_score(field: str, series: pd.Series) -> float:
     if field == "callable":
         text = sample.astype(str).str.strip().str.lower()
         booleans = text.isin(["true", "false", "1", "0", "y", "n", "yes", "no", "oui", "non", "o"]).mean()
-        return float(booleans)
+        types = text.str.contains(r"call|at maturity|bullet|perp|sink|put|normal").mean()
+        return float(max(booleans, types))
     if field == "seniority":
         text = sample.astype(str).str.lower()
         hits = text.apply(lambda v: any(re.search(p, v) for p, _ in SENIORITY_RULES)).mean()
@@ -151,11 +190,19 @@ def content_score(field: str, series: pd.Series) -> float:
     if field == "isin":
         isin_like = sample.astype(str).str.strip().str.fullmatch(r"[A-Z]{2}[A-Z0-9]{9}\d").mean()
         return float(max(isin_like, 0.5 * (distinct > 0.98)))
+    if field in ("industry", "sector_family", "structure", "bail_in"):
+        text_like = 1 - share_numeric
+        return float(text_like * (series.nunique() <= 200))
+    if field == "discount_margin":
+        return float(numeric.notna().mean() > 0) * 0.5
     if field in ("issuer", "sector", "country"):
         text_like = 1 - share_numeric
         cardinality = series.nunique() / max(len(series), 1)
         if field == "issuer":
-            return float(text_like * (0.001 < cardinality < 0.9))
+            # « RZR 1 ⅜ 11/02/36 » : un nom d'obligation (coupon + échéance), pas un émetteur.
+            bond_like = sample.astype(str).str.contains(BOND_NAME, regex=True).mean()
+            plausible = cardinality < 0.9 or len(series) < 50  # petit extrait : un émetteur par ligne possible
+            return float(text_like * (0.001 < cardinality) * plausible * (1 - bond_like))
         if field == "sector":
             return float(text_like * (series.nunique() <= 60))
         return float(text_like * (series.nunique() <= 120))
@@ -168,10 +215,23 @@ def name_score(field: str, column: str) -> float:
     if norm in synonyms:
         return 1.0
     if any(s and len(s) >= 4 and (s in norm) for s in synonyms):
+        # « paysemetteur », « industrieemetteur » : le début du nom désigne un autre champ (pays de l'émetteur).
+        others = [normalize(o) for f, syn in SYNONYMS.items() if f != field for o in syn]
+        if any(len(o) >= 4 and norm.startswith(o) and o not in synonyms for o in others):
+            return 0.3
         return 0.7
     if any(norm and len(norm) >= 4 and norm in s for s in synonyms):
         return 0.5
     return 0.0
+
+
+def detect_preset(raw: pd.DataFrame, share: float = 0.8) -> str | None:
+    """Nom du format connu si au moins `share` de ses colonnes sont présentes."""
+    present = {str(c).strip().lower() for c in raw.columns}
+    for name, mapping in PRESETS.items():
+        if sum(c in present for c in mapping.values()) >= share * len(mapping):
+            return name
+    return None
 
 
 def propose_schema_map(raw: pd.DataFrame, as_of: str | None = None) -> dict:
@@ -187,9 +247,13 @@ def propose_schema_map(raw: pd.DataFrame, as_of: str | None = None) -> dict:
                                "score": round(0.55 * n + 0.45 * c, 3)})
     table = pd.DataFrame(candidates, columns=["champ", "colonne", "nom", "contenu", "score"])
 
-    # Affectation gloutonne : meilleurs couples d'abord, une colonne par champ.
+    # Format connu : correspondance fixe ; le reste est deviné comme d'habitude.
     chosen: dict[str, str] = {}
-    used: set[str] = set()
+    preset = detect_preset(raw)
+    if preset:
+        chosen = {f: c for f, c in PRESETS[preset].items() if c in raw.columns}
+    used: set[str] = set(chosen.values())
+    # Affectation gloutonne : meilleurs couples d'abord, une colonne par champ.
     for row in table.sort_values("score", ascending=False).itertuples():
         if row.champ in chosen or row.colonne in used or row.contenu < 0.3:
             continue
@@ -208,6 +272,8 @@ def propose_schema_map(raw: pd.DataFrame, as_of: str | None = None) -> dict:
         alternatives = alternatives.sort_values("score", ascending=False).head(3)
         best = table[(table["champ"] == field) & (table["colonne"] == chosen.get(field))]
         confidence = float(best["score"].iloc[0]) if len(best) else 0.0
+        if preset and field in chosen and chosen[field] == PRESETS[preset].get(field):
+            confidence = 1.0
         report.append({
             "champ": field, "colonne": chosen.get(field),
             "confiance": "élevée" if confidence >= 0.8 else "moyenne" if confidence >= 0.55 else
@@ -215,6 +281,7 @@ def propose_schema_map(raw: pd.DataFrame, as_of: str | None = None) -> dict:
             "score": round(confidence, 2),
             "autres_candidates": ", ".join(f"{a.colonne} ({a.score:.2f})" for a in alternatives.itertuples()),
             "role": ("contrôle seulement (lié mécaniquement au spread)" if field in CONTROL_ONLY
+                     else "fixé par le format " + preset if preset and field in PRESETS[preset]
                      else "obligatoire" if field in REQUIRED else "facultatif"),
         })
     report = pd.DataFrame(report)
@@ -240,8 +307,21 @@ def propose_schema_map(raw: pd.DataFrame, as_of: str | None = None) -> dict:
             problems.append(f"Notations reconnues : {recognized:.0%}. Non reconnues : "
                             + ", ".join(f"{k} ({v})" for k, v in unknown.items())
                             + ". Ces lignes seront écartées si rien n'est fait.")
+    if "issuer" in chosen:
+        bond_like = raw[chosen["issuer"]].dropna().astype(str).str.contains(BOND_NAME, regex=True).mean()
+        if bond_like > 0.5:
+            problems.append(f"La colonne émetteur « {chosen['issuer']} » ressemble à des noms d'obligations "
+                            f"({bond_like:.0%}) : chaque obligation deviendrait son propre émetteur. Prenez le ticker.")
+    if "pricing_date" in chosen:
+        from bondalorians.data.repository import _to_dates
+
+        counts = _to_dates(raw[chosen["pricing_date"]].astype(str)).value_counts().sort_index()
+        if len(counts) > 1:
+            problems.append("Plusieurs dates de prix : " + ", ".join(f"{d.date()} ({n} lignes)" for d, n in counts.items())
+                            + ". Une seule date sert à estimer (la plus récente par défaut) ; l'autre sert à mesurer "
+                            "le mouvement du marché.")
     schema_map = {
-        "source": {"query": "SELECT * FROM <table>", "as_of": as_of},
+        "source": {"query": "SELECT * FROM <table>", "as_of": as_of, "format": preset},
         "columns": {field: chosen.get(field) for field in SYNONYMS},
         "values": values,
     }

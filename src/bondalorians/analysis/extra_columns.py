@@ -19,7 +19,8 @@ import pandas as pd
 
 from bondalorians.quant.peer_curve import EXTRA_FEATURES, PeerCurve
 
-LABELS = {"esg": "ESG", "age": "Ancienneté de l'émission", "duration": "Duration"}
+LABELS = {"esg": "ESG", "age": "Ancienneté de l'émission", "duration": "Duration", "vert": "Obligation verte",
+          "holdco": "Dette de holding (structure)", "call": "Call avant l'échéance (part de vie restante)"}
 # Une duration modifiée (ou effective) se calcule au rendement de marché, donc avec le spread :
 # elle en contient une partie. Son gain apparent peut être une fuite ; jamais recommandée d'office.
 LEAKY = {"duration"}
