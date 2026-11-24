@@ -55,6 +55,7 @@ values:
     "Unsecured": SENIOR_UNSECURED
     "Sr Preferred": SENIOR_PREFERRED
     "Sr Non Preferred": SENIOR_NON_PREFERRED
+    "Senior Bail-In": SENIOR_NON_PREFERRED
     "Secured": SECURED
     "1st lien": SECURED
     "2nd lien": SECURED

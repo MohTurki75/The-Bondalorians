@@ -94,7 +94,9 @@ CONTROL_ONLY = ["price", "ytm", "discount_margin"]
 SENIORITY_RULES = [  # (motif, valeur interne) — testés dans l'ordre
     (r"\bat\s*1\b|additional\s*tier|addtl|\bat1\b|coco|contingent", "AT1"),
     (r"tier\s*2|\bt2\b|lower\s*tier|\blt2\b", "TIER2"),
-    (r"non[\s-]*pref|\bsnp\b|senior\s*non|holdco", "SENIOR_NON_PREFERRED"),
+    # « Senior Bail-In » (export Bloomberg) : senior non préférée ; notée 2 crans sous la senior « Sr Unsecured »
+    # du même émetteur dans la base du hackathon (médiane sur 37 émetteurs).
+    (r"non[\s-]*pref|\bsnp\b|senior\s*non|holdco|senior\s*bail[\s-]*in", "SENIOR_NON_PREFERRED"),
     (r"hybrid|hybride|perp|corporate\s*hybrid", "HYBRID"),
     (r"sub|subord|junior|\bjr\b|\bsub\b", "SUBORDINATED"),
     # « unsecured » contient « secured » : la dette non garantie doit être testée avant la garantie.
