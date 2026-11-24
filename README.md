@@ -53,6 +53,7 @@ la courbe émetteur, poids de distance des comparables, champion, confiance.
     python scripts/qualite.py               # indicateurs et tests de chaque modèle
     python scripts/jour1.py --csv base.csv  # jour 1 : correspondance des colonnes, profil, colonnes en plus
     python scripts/motifs.py data/base_jour1.csv   # fiche pour les agents : aiguillage, poches, règles
+    python scripts/fiches.py dossier_fiches/       # estime des fiches obligataires .md, une explication par fiche
     pytest
 
 Interface de démonstration :

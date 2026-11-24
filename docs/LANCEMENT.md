@@ -126,6 +126,29 @@ Sorties : `data/base_jour1.csv` (une date, pour l'interface et le backtest) et
 marché entre les deux dates (par notation, séniorité, secteur, maturité), la part expliquée par le
 segment, les obligations atypiques, et la stabilité de la courbe des pairs d'une date à l'autre.
 
+### Estimer des fiches obligataires (.md)
+
+Une fiche « # Fiche Obligataire - PY366041 Corp » décrit l'obligation proposée par le broker. Elle
+passe par la même lecture que la base (dates, call, séniorité), avec les maturités comptées depuis la
+date de prix de la base.
+
+    python scripts/fiches.py dossier_fiches/ --csv data/base_jour1.csv     # ou des fichiers .md un à un
+
+Sorties dans `rapports/fiches/` : une explication par fiche (`<ID>.md` : ce qui a été lu, points
+d'attention, modèles, cascade, comparables, contrôles) et un récapitulatif (`recapitulatif.md`, `.csv`).
+Dans l'interface : onglet Estimation, mode « Depuis des fiches (.md) », glisser une ou plusieurs fiches.
+
+Cas particuliers :
+- **Notation NR** : déduite de la base (obligations de même rang de l'émetteur ; sinon sa dette senior
+  plus l'écart de crans habituel ; sinon médiane du secteur et du rang). L'explication donne la
+  sensibilité du spread à deux crans au-dessus et en dessous : à lire avant de conclure.
+- **Cotée au call** : « Date Maturité Pricing » bien avant « Date Maturité » → maturité jusqu'au call,
+  remboursable. Si les deux dates sont égales, le « CALLABLE » est un call de fin de vie, ignoré.
+- **Bail-in** : signalé ; n'agit sur l'estimation que si la variable `bailin` est activée
+  (`peer_curve.extra`), c'est-à-dire si `jour1.py` montre qu'elle réduit l'erreur.
+- **Obligation déjà dans la base** (même ID) : exclue de ses propres comparables ; son spread observé
+  est affiché à côté de l'estimation, pour contrôle.
+
 ### Préparer PostgreSQL (jour 1)
 
 1. Créer les référentiels et les tables de journal, avec un compte autorisé à écrire :

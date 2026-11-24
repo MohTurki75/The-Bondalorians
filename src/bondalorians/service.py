@@ -114,6 +114,37 @@ class Service:
         result["run_id"] = self.run_store.save({"input": bond, "result": result}, prefix="run")
         return result
 
+    def pricing_date(self) -> pd.Timestamp:
+        """Date de prix de la base (maturités des fiches comptées depuis elle) ; à défaut, aujourd'hui."""
+        if "pricing_date" in self.base_universe.columns and self.base_universe["pricing_date"].notna().any():
+            return pd.to_datetime(self.base_universe["pricing_date"]).max().normalize()
+        return pd.Timestamp.today().normalize()
+
+    def estimate_fiche(self, text: str) -> dict:
+        """Estime l'obligation décrite par une fiche Markdown et rédige son explication."""
+        from bondalorians.data.fiche import fiche_to_bond, parse_fiche
+        from bondalorians.data.schema import RATING_SCALE, to_notch
+        from bondalorians.explain.fiche_report import fiche_markdown
+
+        raw = parse_fiche(text)
+        bond, notes = fiche_to_bond(raw, self.pricing_date(), self.estimator.df_)
+        result = self.estimate(bond)
+        observed = None
+        match = self.estimator.df_[self.estimator.df_["isin"] == bond.get("isin")]
+        if len(match):
+            observed = {"z_spread_bp": float(match["z_spread"].iat[0])}
+        sensitivity = None
+        if str(bond.get("rating_source", "")).startswith("déduite"):
+            notch = int(to_notch(bond["rating"]))
+            sensitivity = []
+            for n in range(max(1, notch - 2), min(len(RATING_SCALE) - 3, notch + 2) + 1):
+                value = result["z_spread_bp"] if n == notch else self.estimator.estimate(
+                    {**bond, "rating": RATING_SCALE[n - 1]})["z_spread_bp"]
+                sensitivity.append({"rating": RATING_SCALE[n - 1], "z_spread_bp": value, "retenue": n == notch})
+        markdown = fiche_markdown(raw, bond, notes, result, sensitivity, observed)
+        return _jsonable({"fiche": raw, "bond": bond, "notes": notes, "result": result,
+                          "sensitivity": sensitivity, "observed": observed, "markdown": markdown})
+
     def find_comparables(self, bond: str | dict) -> dict:
         result = self.estimator.estimate(bond)
         return {k: result[k] for k in ("filter_level", "issuer_offset", "comparables")}

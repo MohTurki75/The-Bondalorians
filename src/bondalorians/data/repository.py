@@ -60,18 +60,20 @@ def apply_schema_map(raw: pd.DataFrame, schema_map: dict) -> pd.DataFrame:
             out[column] = _to_number(out[column])
     if "callable" in out.columns:
         out["callable"] = out["callable"].map(_to_bool)
-    if "call_date" in dates:
-        out["years_to_call"] = years(dates["call_date"])
-        if "final_maturity_years" in out.columns:
-            # Part de la vie restante avant le premier call : 1 = pas de call utile.
-            ratio = (out["years_to_call"] / out["final_maturity_years"]).clip(0, 1)
-            gap = out["final_maturity_years"] - out["years_to_call"]
-            material = gap > MATERIAL_CALL_YEARS
-            out["call_ratio"] = ratio.where(material, 1.0).fillna(1.0)
-            if "callable" in out.columns:
-                # « CALLABLE » avec un simple call au pair trois mois avant l'échéance : économiquement non remboursable.
-                out["callable_raw"] = out["callable"]
-                out["callable"] = out["callable"] & material.fillna(False)
+    if "callable" in out.columns and ("final_maturity_date" in dates or "call_date" in dates):
+        # Call utile : prochain call plus d'un an avant l'échéance finale. Sans date de call (fiche, ou
+        # champ vide), une échéance de calcul bien antérieure à l'échéance finale signale une cotation au call.
+        final_years = out["final_maturity_years"]
+        call_years = dates["call_date"].pipe(years) if "call_date" in dates else pd.Series(np.nan, index=out.index)
+        if "call_date" in dates:
+            out["years_to_call"] = call_years
+        call_years = call_years.where(call_years.notna(), out["maturity_years"].where(
+            final_years - out["maturity_years"] > MATERIAL_CALL_YEARS))
+        material = (final_years - call_years) > MATERIAL_CALL_YEARS
+        out["call_ratio"] = (call_years / final_years).clip(0, 1).where(material, 1.0).fillna(1.0)
+        # « CALLABLE » avec un simple call au pair trois mois avant l'échéance : économiquement non remboursable.
+        out["callable_raw"] = out["callable"]
+        out["callable"] = out["callable"] & material.fillna(False)
     for column in FLAG_FIELDS:
         if column in out.columns:
             out[column] = out[column].map(_to_bool)
@@ -80,6 +82,18 @@ def apply_schema_map(raw: pd.DataFrame, schema_map: dict) -> pd.DataFrame:
     for column, mapping in (schema_map.get("values") or {}).items():
         if column in out.columns and mapping:
             out[column] = out[column].map(lambda v, m=mapping: m.get(v, v))
+    # Valeurs non traduites (« Subordinated Unsecured », « VARIABLE ») : mêmes règles que la correspondance auto.
+    from bondalorians.data.automap import COUPON_RULES, SENIORITY_RULES, _value_map
+    from bondalorians.data.schema import SENIORITY_RANK
+
+    for column, rules, known, default in (("seniority", SENIORITY_RULES, set(SENIORITY_RANK), "SENIOR_UNSECURED"),
+                                          ("coupon_type", COUPON_RULES, {"FIXED", "FLOATING", "ZERO"}, "FIXED")):
+        if column in out.columns:
+            unknown = out[column].dropna().astype(str)
+            unknown = unknown[~unknown.str.upper().isin(known)]
+            if len(unknown):
+                mapping = _value_map(unknown, rules, default)
+                out[column] = out[column].map(lambda v, m=mapping: m.get(str(v), v) if pd.notna(v) else v)
     return out
 
 

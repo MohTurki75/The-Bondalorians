@@ -68,7 +68,7 @@ def build_brief(estimator, readings: pd.DataFrame | None = None, include_extra: 
         from bondalorians.analysis.extra_columns import evaluate_extra_columns
 
         if any(c in df.columns for c in ("esg_score", "age_years", "duration", "green_flag", "holdco_flag",
-                                          "call_ratio")):
+                                          "call_ratio", "bailin_flag")):
             result = evaluate_extra_columns(df)
             extra = {"recommandees": result["recommended"], "constats": result["findings"],
                      "detail": result["tables"]["variables"]}
