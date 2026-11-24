@@ -33,13 +33,23 @@ GROUP_LABELS = {
     "coupon_type": "Type de coupon",
     "callable": "Option de remboursement anticipé",
     "size": "Taille de la souche",
+    "esg": "ESG",
+    "age": "Ancienneté de l'émission",
+    "duration": "Duration",
+    "vert": "Obligation verte",
+    "holdco": "Dette de holding",
+    "call": "Call avant l'échéance",
 }
+# Variables supplémentaires possibles (jour 1), activées par `extra` : colonne -> transformation.
+EXTRA_FEATURES = {"esg": "esg_score", "age": "age_years", "duration": "duration", "vert": "green_flag",
+                  "holdco": "holdco_flag", "call": "call_ratio"}
 
 
 class PeerCurve:
-    def __init__(self, ridge: float = 0.01, enriched: bool = False):
+    def __init__(self, ridge: float = 0.01, enriched: bool = False, extra: tuple = ()):
         self.ridge = ridge
         self.enriched = enriched
+        self.extra = tuple(extra)
 
     def _blocks(self, df: pd.DataFrame) -> list[tuple[str, np.ndarray]]:
         notch = df["notch"].to_numpy(dtype=float)
@@ -60,7 +70,23 @@ class PeerCurve:
             countries = df["country"].to_numpy()
             blocks += [("country", (countries == level).astype(float)) for level in self.levels_["country"]]
             blocks.append(("size", df["log_amt"].to_numpy(dtype=float) - AMOUNT_CENTER))
+        for name in self.extra:
+            values = self._extra_values(df, name)
+            if values is not None:
+                blocks.append((name, values))
         return blocks
+
+    def _extra_values(self, df: pd.DataFrame, name: str) -> np.ndarray | None:
+        """Variable supplémentaire centrée ; une valeur absente prend la moyenne (effet nul)."""
+        column = EXTRA_FEATURES[name]
+        if not hasattr(self, "extra_means_") or name not in self.extra_means_:
+            return None
+        if column not in df.columns:
+            return np.zeros(len(df))
+        values = pd.to_numeric(df[column], errors="coerce").to_numpy(dtype=float)
+        if name == "age":
+            values = np.log1p(np.clip(values, 0, None))
+        return np.nan_to_num(values - self.extra_means_[name], nan=0.0)
 
     def _design(self, df: pd.DataFrame) -> np.ndarray:
         return np.column_stack([column for _, column in self._blocks(df)])
@@ -68,6 +94,13 @@ class PeerCurve:
     def fit(self, df: pd.DataFrame) -> "PeerCurve":
         columns = CATEGORICALS + (["country"] if self.enriched else [])
         self.levels_ = {c: sorted(df[c].unique()) for c in columns}
+        self.extra_means_ = {}
+        for name in self.extra:
+            column = EXTRA_FEATURES[name]
+            if column in df.columns and pd.to_numeric(df[column], errors="coerce").notna().mean() > 0.5:
+                values = pd.to_numeric(df[column], errors="coerce")
+                values = np.log1p(values.clip(lower=0)) if name == "age" else values
+                self.extra_means_[name] = float(values.mean())
         blocks = self._blocks(df)
         self.groups_ = [group for group, _ in blocks]
         x = np.column_stack([column for _, column in blocks])

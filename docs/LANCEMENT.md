@@ -41,6 +41,91 @@ Le fichier `.env` n'est jamais versionné. Trois cas :
 Autres réglages : `BONDALORIANS_USE_ML=0` coupe CatBoost (préparation en
 5 secondes au lieu d'une minute) ; `BONDALORIANS_PORT` change le port.
 
+### Lire la base du jour 1 en une commande
+
+Le script propose la correspondance des colonnes (par leur nom et leur
+contenu), traduit les valeurs (séniorité, type de coupon), lit les dates au
+format français, reconnaît les notations S&P, Moody's et Fitch sous leurs
+formes courantes (« Baa1 *- », « BBB+ (S&P) »), dresse le profil de la base et
+teste les colonnes supplémentaires.
+
+Depuis un fichier exporté :
+
+    python scripts/jour1.py --csv base.csv --sep ";" --as-of 2026-11-24
+
+Depuis PostgreSQL :
+
+    python scripts/jour1.py --dsn "host=... dbname=... user=..." --query "SELECT * FROM schema.table" --as-of 2026-11-24
+
+À relire dans la sortie :
+
+1. **Correspondance proposée** : colonne retenue pour chaque champ, confiance,
+   autres candidates. Une confiance faible ou un champ obligatoire manquant se
+   corrige à la main dans `config/schema_map.yaml` (option `--ecrire` pour
+   l'écrire, l'ancien fichier étant gardé en `.bak`).
+2. **Traduction des valeurs** : chaque libellé de séniorité et sa catégorie.
+3. **Profil** : lignes écartées, obligations par émetteur, répartitions.
+4. **Colonnes supplémentaires** :
+   - ESG, ancienneté de l'émission (calculée depuis la date d'émission) :
+     recommandées seulement si elles réduisent l'erreur hors échantillon d'au
+     moins 1 %, émetteur connu comme inconnu ;
+   - duration : jamais recommandée d'office. Une duration modifiée se calcule
+     au rendement de marché, qui contient le spread : son gain peut être une
+     fuite ;
+   - prix et rendement (YTM) : jamais utilisés comme variables. Ils sont liés
+     mécaniquement au spread ; les utiliser reviendrait à recalculer le spread
+     de la cotation au lieu de l'estimer.
+5. **Réglage à reporter** : la ligne `extra: [...]` à copier dans
+   `config/settings.yaml`, section `peer_curve`.
+
+Le script écrit `data/base_jour1.csv` au schéma interne ; l'interface le lit
+directement :
+
+    BONDALORIANS_CSV=data/base_jour1.csv scripts/start.sh
+
+Ensuite, la fiche pour les agents :
+
+    python scripts/motifs.py data/base_jour1.csv
+
+Elle écrit `rapports/fiche_agents.json` (à donner aux agents) et
+`rapports/fiche_agents.md` (à relire).
+
+`--as-of` doit être la date des spreads de la base : c'est elle qui sert à
+calculer les maturités et l'ancienneté.
+
+### Format d'export Bloomberg (base du hackathon)
+
+Le fichier à colonnes `pricing_date, id, ticker, nomemetteur, …, niveauzspread, ratingmoyen,
+prochainedatecall` est reconnu seul : la correspondance est fixe (`config/schema_map_bloomberg.yaml`).
+
+    python scripts/jour1.py --csv base.csv                     # estime sur la date la plus récente
+    python scripts/jour1.py --csv base.csv --date 2026-03-16   # ou sur une date choisie
+
+Ce que fait la lecture, et pourquoi :
+
+| Colonne | Traitement | Raison |
+|---|---|---|
+| `ticker` | émetteur | `nomemetteur` contient le nom de l'obligation (« RZR 1 ⅜ 11/02/36 ») |
+| `pricing_date` | une seule date pour estimer ; l'autre pour la dynamique | la même obligation aux deux dates serait un comparable presque parfait (fuite) |
+| `datematurit_pricingobligation` | maturité, calculée depuis la date de prix de la ligne | échéance de calcul du Z-Spread |
+| `datematurit`, `prochainedatecall`, `typematurit` | remboursable seulement si le call tombe plus d'un an avant l'échéance finale ; part de vie avant le call | « CALLABLE » désigne souvent un simple call au pair trois mois avant l'échéance |
+| `nomsecteur` | secteur (courbe des pairs) | une dizaine de valeurs : assez d'obligations par case |
+| `industrieemetteur` | industrie (motifs, dynamique) | trop fin pour la régression |
+| `structureaffaire` | holdco / opco, variable candidate | subordination structurelle |
+| `greenbond` | variable candidate | prime verte éventuelle |
+| `dateemission` | ancienneté, variable candidate | |
+| `durationbid` | candidate, signalée fuite probable | calculée au rendement de marché |
+| `prixbid`, `rendement`, `discountmargenextcall` | contrôles seulement | liés mécaniquement au spread |
+| `niveaumid`, `nomgroupeindustrie`, `classificationsecteuremetteur`, `premieredatesettlement` | ignorées | sens incertain ou redondant |
+
+Les dates au format JavaScript (« Sun Nov 02 2036 00:00:00 GMT+0000 (…) »), les dates `20260316` et les
+`#N/A` sont lus directement.
+
+Sorties : `data/base_jour1.csv` (une date, pour l'interface et le backtest) et
+`data/base_jour1_historique.csv` (toutes les dates). La section 7 du script mesure le mouvement du
+marché entre les deux dates (par notation, séniorité, secteur, maturité), la part expliquée par le
+segment, les obligations atypiques, et la stabilité de la courbe des pairs d'une date à l'autre.
+
 ### Préparer PostgreSQL (jour 1)
 
 1. Créer les référentiels et les tables de journal, avec un compte autorisé à écrire :

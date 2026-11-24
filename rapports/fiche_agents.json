@@ -1,0 +1,760 @@
+{
+  "meta": {
+    "genere_le": "2026-11-23 22:20 UTC",
+    "source": "base_jour1.csv",
+    "version_modele": "0.1.0-3000-e7edf59d83",
+    "seuils_segments": {
+      "taille": [
+        19.7576097448631,
+        20.259217768595285
+      ],
+      "esg": [
+        3.0,
+        5.0
+      ],
+      "anciennete": true
+    },
+    "mode_d_emploi": "Pour estimer une obligation : 1) chercher sa case dans `aiguillage` et utiliser la méthode recommandée, en multipliant la demi-largeur de l'intervalle par `facteur_intervalle` ; 2) vérifier les `poches` qui la concernent et mentionner l'ajustement suggéré ; 3) ne jamais citer un chiffre absent de cette fiche ou des outils. Toutes les erreurs sont hors échantillon (obligations estimées sans avoir servi à l'apprentissage). Les poches sont des tendances moyennes d'un segment, pas des certitudes pour une obligation."
+  },
+  "structure": {
+    "obligations": 3000,
+    "emetteurs": 407,
+    "obligations_par_emetteur_mediane": 4.0,
+    "part_du_spread_expliquee_par_variable": {
+      "Notation (cran)": 0.854,
+      "Notation (lettre)": 0.815,
+      "Émetteur": 0.762,
+      "Séniorité": 0.219,
+      "Secteur": 0.047,
+      "Maturité (5 tranches)": 0.033,
+      "Pays": 0.011,
+      "Devise": 0.0
+    },
+    "poids_emetteur_k": 0.773,
+    "poids_emetteur_avec_1_3_10_obligations": [
+      0.56,
+      0.8,
+      0.93
+    ],
+    "dispersion_entre_obligations_d_un_emetteur": 0.1497,
+    "dispersion_entre_emetteurs": 0.1703,
+    "primes_de_subordination_pct": {
+      "SENIOR_NON_PREFERRED": 30.1,
+      "HYBRID": 90.9,
+      "SUBORDINATED": 49.7,
+      "TIER2": 66.4,
+      "AT1": 138.8
+    },
+    "modele_retenu_par_palier": {
+      "complexe": "A",
+      "emetteur_inconnu": "A",
+      "intermediaire": "A",
+      "simple": "A"
+    }
+  },
+  "aiguillage": [
+    {
+      "notation": "haut rendement (BB+ et moins)",
+      "dette": "senior",
+      "emetteur": "1 à 2 obligations",
+      "cas": 137,
+      "erreur_actuelle_pct": 12.07,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 12.07,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.891,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 15.24,
+      "erreur_A · comparables_pct": 12.07,
+      "erreur_S · ancrage senior_pct": 12.07
+    },
+    {
+      "notation": "haut rendement (BB+ et moins)",
+      "dette": "senior",
+      "emetteur": "3 obligations ou plus",
+      "cas": 448,
+      "erreur_actuelle_pct": 10.38,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 10.38,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.871,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 16.04,
+      "erreur_A · comparables_pct": 10.38,
+      "erreur_S · ancrage senior_pct": 10.38
+    },
+    {
+      "notation": "haut rendement (BB+ et moins)",
+      "dette": "senior",
+      "emetteur": "inconnu",
+      "cas": 605,
+      "erreur_actuelle_pct": 18.91,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 18.91,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.894,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 18.95,
+      "erreur_A · comparables_pct": 18.91,
+      "erreur_S · ancrage senior_pct": 18.91
+    },
+    {
+      "notation": "haut rendement (BB+ et moins)",
+      "dette": "subordonnée",
+      "emetteur": "1 à 2 obligations",
+      "cas": 69,
+      "erreur_actuelle_pct": 16.29,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 16.29,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.942,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 20.51,
+      "erreur_A · comparables_pct": 16.29,
+      "erreur_S · ancrage senior_pct": 17.41
+    },
+    {
+      "notation": "haut rendement (BB+ et moins)",
+      "dette": "subordonnée",
+      "emetteur": "3 obligations ou plus",
+      "cas": 186,
+      "erreur_actuelle_pct": 15.7,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 15.7,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.909,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 17.97,
+      "erreur_A · comparables_pct": 15.7,
+      "erreur_S · ancrage senior_pct": 16.52
+    },
+    {
+      "notation": "haut rendement (BB+ et moins)",
+      "dette": "subordonnée",
+      "emetteur": "inconnu",
+      "cas": 263,
+      "erreur_actuelle_pct": 20.98,
+      "meilleure_methode": "P · courbe des pairs",
+      "erreur_meilleure_pct": 20.22,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.951,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 20.22,
+      "erreur_A · comparables_pct": 20.98,
+      "erreur_S · ancrage senior_pct": 20.98
+    },
+    {
+      "notation": "investissement (BBB- et mieux)",
+      "dette": "senior",
+      "emetteur": "1 à 2 obligations",
+      "cas": 387,
+      "erreur_actuelle_pct": 9.17,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 9.17,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.904,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 13.34,
+      "erreur_A · comparables_pct": 9.17,
+      "erreur_S · ancrage senior_pct": 9.17
+    },
+    {
+      "notation": "investissement (BBB- et mieux)",
+      "dette": "senior",
+      "emetteur": "3 obligations ou plus",
+      "cas": 1151,
+      "erreur_actuelle_pct": 6.82,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 6.82,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.908,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 13.74,
+      "erreur_A · comparables_pct": 6.82,
+      "erreur_S · ancrage senior_pct": 6.82
+    },
+    {
+      "notation": "investissement (BBB- et mieux)",
+      "dette": "senior",
+      "emetteur": "inconnu",
+      "cas": 1599,
+      "erreur_actuelle_pct": 14.97,
+      "meilleure_methode": "P · courbe des pairs",
+      "erreur_meilleure_pct": 14.57,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.889,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 14.57,
+      "erreur_A · comparables_pct": 14.97,
+      "erreur_S · ancrage senior_pct": 14.97
+    },
+    {
+      "notation": "investissement (BBB- et mieux)",
+      "dette": "subordonnée",
+      "emetteur": "1 à 2 obligations",
+      "cas": 52,
+      "erreur_actuelle_pct": 13.71,
+      "meilleure_methode": "S · ancrage senior",
+      "erreur_meilleure_pct": 12.57,
+      "changer": true,
+      "methode_recommandee": "S · ancrage senior",
+      "couverture_intervalle": 0.942,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 16.38,
+      "erreur_A · comparables_pct": 13.71,
+      "erreur_S · ancrage senior_pct": 12.57
+    },
+    {
+      "notation": "investissement (BBB- et mieux)",
+      "dette": "subordonnée",
+      "emetteur": "3 obligations ou plus",
+      "cas": 175,
+      "erreur_actuelle_pct": 8.16,
+      "meilleure_methode": "A · comparables",
+      "erreur_meilleure_pct": 8.16,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.909,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 16.72,
+      "erreur_A · comparables_pct": 8.16,
+      "erreur_S · ancrage senior_pct": 12.19
+    },
+    {
+      "notation": "investissement (BBB- et mieux)",
+      "dette": "subordonnée",
+      "emetteur": "inconnu",
+      "cas": 233,
+      "erreur_actuelle_pct": 19.2,
+      "meilleure_methode": "P · courbe des pairs",
+      "erreur_meilleure_pct": 18.82,
+      "changer": false,
+      "methode_recommandee": "estimation retenue actuelle",
+      "couverture_intervalle": 0.936,
+      "facteur_intervalle": 1.0,
+      "erreur_P · courbe des pairs_pct": 18.82,
+      "erreur_A · comparables_pct": 19.2,
+      "erreur_S · ancrage senior_pct": 19.2
+    }
+  ],
+  "poches": [
+    {
+      "situation": "émetteur inconnu",
+      "segment": "ESG ESG élevé",
+      "dimensions": {
+        "esg": "ESG élevé"
+      },
+      "obligations": 754,
+      "emetteurs": 116,
+      "ecart_pct": -9.57882856250787,
+      "ecart_decouverte_pct": -6.8405991957637635,
+      "ecart_confirmation_pct": -12.061846474732342,
+      "p_decouverte": 0.002468879644634797,
+      "p_confirmation": 4.335443208760954e-06,
+      "p": 4.133858046306224e-08,
+      "niveau": 1,
+      "sens": "spread réel en dessous de l'estimation",
+      "action": "Pour ce segment, abaisser l'estimation d'environ 10 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "ESG ESG faible",
+      "dimensions": {
+        "esg": "ESG faible"
+      },
+      "obligations": 1241,
+      "emetteurs": 172,
+      "ecart_pct": 8.18540320221086,
+      "ecart_decouverte_pct": 6.9592920003101355,
+      "ecart_confirmation_pct": 9.64682437084965,
+      "p_decouverte": 0.003177205940327263,
+      "p_confirmation": 0.00014960116694828058,
+      "p": 2.056792599268739e-06,
+      "niveau": 1,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 8 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Pays DE · ESG ESG faible",
+      "dimensions": {
+        "pays": "DE",
+        "esg": "ESG faible"
+      },
+      "obligations": 118,
+      "emetteurs": 23,
+      "ecart_pct": 20.465842577309235,
+      "ecart_decouverte_pct": 18.508756717777096,
+      "ecart_confirmation_pct": 22.637724364278,
+      "p_decouverte": 0.004333577818485817,
+      "p_confirmation": 0.006576936964531578,
+      "p": 5.027749954945042e-05,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 20 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Pays US · ESG ESG faible",
+      "dimensions": {
+        "pays": "US",
+        "esg": "ESG faible"
+      },
+      "obligations": 84,
+      "emetteurs": 21,
+      "ecart_pct": 18.952928216013486,
+      "ecart_decouverte_pct": 15.732328044726064,
+      "ecart_confirmation_pct": 23.386904244249585,
+      "p_decouverte": 0.014735023632623198,
+      "p_confirmation": 0.010195728219547768,
+      "p": 0.00025495456471201966,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 19 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Maturité > 15 ans · ESG ESG élevé",
+      "dimensions": {
+        "maturite": "> 15 ans",
+        "esg": "ESG élevé"
+      },
+      "obligations": 41,
+      "emetteurs": 33,
+      "ecart_pct": -15.284332350300833,
+      "ecart_decouverte_pct": -13.570895175907028,
+      "ecart_confirmation_pct": -16.379808490890056,
+      "p_decouverte": 0.011797015623459323,
+      "p_confirmation": 0.005821931898925187,
+      "p": 0.00019878941484079593,
+      "niveau": 2,
+      "sens": "spread réel en dessous de l'estimation",
+      "action": "Pour ce segment, abaisser l'estimation d'environ 15 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Séniorité SENIOR_NON_PREFERRED · ESG ESG élevé",
+      "dimensions": {
+        "seniorite": "SENIOR_NON_PREFERRED",
+        "esg": "ESG élevé"
+      },
+      "obligations": 40,
+      "emetteurs": 14,
+      "ecart_pct": -14.533616404100213,
+      "ecart_decouverte_pct": -18.2252519615692,
+      "ecart_confirmation_pct": -10.675325816611892,
+      "p_decouverte": 0.019188647342917958,
+      "p_confirmation": 0.04256161747573991,
+      "p": 0.0014453672857504044,
+      "niveau": 2,
+      "sens": "spread réel en dessous de l'estimation",
+      "action": "Pour ce segment, abaisser l'estimation d'environ 15 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Pays IT · ESG ESG faible",
+      "dimensions": {
+        "pays": "IT",
+        "esg": "ESG faible"
+      },
+      "obligations": 170,
+      "emetteurs": 22,
+      "ecart_pct": 14.29596683073,
+      "ecart_decouverte_pct": 11.975750215774216,
+      "ecart_confirmation_pct": 16.664259972343952,
+      "p_decouverte": 0.06681901795179629,
+      "p_confirmation": 0.002969236633088356,
+      "p": 0.0006410581399187244,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 14 %"
+    }
+  ],
+  "poches_courbe_des_pairs": [
+    {
+      "situation": "émetteur connu",
+      "segment": "ESG ESG élevé",
+      "dimensions": {
+        "esg": "ESG élevé"
+      },
+      "obligations": 726,
+      "emetteurs": 93,
+      "ecart_pct": -7.784512847574366,
+      "ecart_decouverte_pct": -6.227503993851958,
+      "ecart_confirmation_pct": -9.283357382267344,
+      "p_decouverte": 0.0021640781238682423,
+      "p_confirmation": 0.001342688854303915,
+      "p": 1.0875512952554068e-05,
+      "niveau": 1,
+      "sens": "spread réel en dessous de l'estimation",
+      "action": "Pour ce segment, abaisser l'estimation d'environ 8 %"
+    },
+    {
+      "situation": "émetteur connu",
+      "segment": "ESG ESG faible",
+      "dimensions": {
+        "esg": "ESG faible"
+      },
+      "obligations": 1205,
+      "emetteurs": 143,
+      "ecart_pct": 6.8339764347000065,
+      "ecart_decouverte_pct": 5.389181175752955,
+      "ecart_confirmation_pct": 8.45048165795317,
+      "p_decouverte": 0.021519963306468787,
+      "p_confirmation": 0.0008817710399630515,
+      "p": 6.882433729188102e-05,
+      "niveau": 1,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 7 %"
+    },
+    {
+      "situation": "émetteur connu",
+      "segment": "Pays DE · ESG ESG faible",
+      "dimensions": {
+        "pays": "DE",
+        "esg": "ESG faible"
+      },
+      "obligations": 109,
+      "emetteurs": 17,
+      "ecart_pct": 20.508025305405585,
+      "ecart_decouverte_pct": 15.471281891589484,
+      "ecart_confirmation_pct": 25.169273786789525,
+      "p_decouverte": 0.007623137077909932,
+      "p_confirmation": 0.003330132558150782,
+      "p": 5.983728288890901e-05,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 21 %"
+    },
+    {
+      "situation": "émetteur connu",
+      "segment": "Pays IT · ESG ESG faible",
+      "dimensions": {
+        "pays": "IT",
+        "esg": "ESG faible"
+      },
+      "obligations": 165,
+      "emetteurs": 18,
+      "ecart_pct": 15.406546404567933,
+      "ecart_decouverte_pct": 12.867309111300674,
+      "ecart_confirmation_pct": 17.052087791133765,
+      "p_decouverte": 0.17033113836365424,
+      "p_confirmation": 0.002687426286374549,
+      "p": 0.001405352763914012,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 15 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "ESG ESG élevé",
+      "dimensions": {
+        "esg": "ESG élevé"
+      },
+      "obligations": 754,
+      "emetteurs": 116,
+      "ecart_pct": -9.34118778642069,
+      "ecart_decouverte_pct": -6.587448198792256,
+      "ecart_confirmation_pct": -11.838055414570325,
+      "p_decouverte": 0.0033520535220581665,
+      "p_confirmation": 9.070294028227074e-06,
+      "p": 1.1025168051135386e-07,
+      "niveau": 1,
+      "sens": "spread réel en dessous de l'estimation",
+      "action": "Pour ce segment, abaisser l'estimation d'environ 9 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "ESG ESG faible",
+      "dimensions": {
+        "esg": "ESG faible"
+      },
+      "obligations": 1241,
+      "emetteurs": 172,
+      "ecart_pct": 8.082411204872542,
+      "ecart_decouverte_pct": 6.848631634714142,
+      "ecart_confirmation_pct": 9.553104847156234,
+      "p_decouverte": 0.0033592963819223777,
+      "p_confirmation": 0.00016339099790706657,
+      "p": 2.3288868169162485e-06,
+      "niveau": 1,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 8 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Pays DE · ESG ESG faible",
+      "dimensions": {
+        "pays": "DE",
+        "esg": "ESG faible"
+      },
+      "obligations": 118,
+      "emetteurs": 23,
+      "ecart_pct": 20.65773670794462,
+      "ecart_decouverte_pct": 17.859478872569824,
+      "ecart_confirmation_pct": 23.78620712819366,
+      "p_decouverte": 0.004434000446599281,
+      "p_confirmation": 0.006524686692155985,
+      "p": 5.6457686038472916e-05,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 21 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Pays US · ESG ESG faible",
+      "dimensions": {
+        "pays": "US",
+        "esg": "ESG faible"
+      },
+      "obligations": 84,
+      "emetteurs": 21,
+      "ecart_pct": 16.959983592739803,
+      "ecart_decouverte_pct": 13.29584755749391,
+      "ecart_confirmation_pct": 22.030495120438466,
+      "p_decouverte": 0.021437812201977047,
+      "p_confirmation": 0.010114222406178219,
+      "p": 0.0003883815528797439,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 17 %"
+    },
+    {
+      "situation": "émetteur inconnu",
+      "segment": "Pays IT · ESG ESG faible",
+      "dimensions": {
+        "pays": "IT",
+        "esg": "ESG faible"
+      },
+      "obligations": 170,
+      "emetteurs": 22,
+      "ecart_pct": 15.493099227647079,
+      "ecart_decouverte_pct": 13.566584697382877,
+      "ecart_confirmation_pct": 17.452294658241343,
+      "p_decouverte": 0.029684999612261693,
+      "p_confirmation": 0.0019163161611952056,
+      "p": 0.00014431894889795597,
+      "niveau": 2,
+      "sens": "spread réel au-dessus de l'estimation",
+      "action": "Pour ce segment, relever l'estimation d'environ 15 %"
+    }
+  ],
+  "colonnes_supplementaires": {
+    "recommandees": [
+      "esg"
+    ],
+    "constats": [
+      "Courbe des pairs sans variable supplémentaire : erreur médiane hors échantillon de 14.8 % (émetteur connu) et 15.9 % (émetteur inconnu).",
+      "ESG : renseignée à 100 % ; erreur -11.5 % (émetteur connu), -10.0 % (émetteur inconnu) → à activer.",
+      "Ancienneté de l'émission : renseignée à 100 % ; erreur -0.8 % (émetteur connu), -0.0 % (émetteur inconnu) → inutile.",
+      "Duration : renseignée à 100 % ; erreur -5.2 % (émetteur connu), -5.3 % (émetteur inconnu) → gain suspect : fuite probable.",
+      "Corrélation entre duration et log de la maturité : 0.89.",
+      "Attention : une duration modifiée se calcule au rendement de marché, qui contient le spread. Ce qu'elle apporte au-delà de la maturité peut venir du spread lui-même (fuite). À n'activer que si elle est calculée sans le rendement de l'obligation (taux de référence), ou si son gain persiste en la recalculant ainsi.",
+      "Rendement (YTM) : devine 63 % de la dispersion des spreads à lui seul. Lié mécaniquement au spread : à ne jamais utiliser comme variable, seulement pour des contrôles.",
+      "Prix : seul, il devine peu (il dépend aussi du coupon et de la maturité), mais avec eux il redonne le rendement, donc le spread. Lié mécaniquement au spread : à ne jamais utiliser comme variable, seulement pour des contrôles.",
+      "Réglage à reporter dans config/settings.yaml, section peer_curve : extra: ['esg']."
+    ],
+    "detail": [
+      {
+        "variable": "ESG",
+        "cle": "esg",
+        "renseignee": 1.0,
+        "correlation_residu": -0.343,
+        "gain_émetteur inconnu": 9.99,
+        "gain_émetteur connu": 11.49,
+        "recommandation": "à activer"
+      },
+      {
+        "variable": "Ancienneté de l'émission",
+        "cle": "age",
+        "renseignee": 1.0,
+        "correlation_residu": 0.002,
+        "gain_émetteur inconnu": 0.01,
+        "gain_émetteur connu": 0.75,
+        "recommandation": "inutile"
+      },
+      {
+        "variable": "Duration",
+        "cle": "duration",
+        "renseignee": 1.0,
+        "correlation_residu": -0.057,
+        "gain_émetteur inconnu": 5.31,
+        "gain_émetteur connu": 5.16,
+        "recommandation": "gain suspect : fuite probable"
+      }
+    ]
+  },
+  "regles": [
+    {
+      "id": "R01",
+      "type": "structure",
+      "consigne": "Les obligations d'un même émetteur sont cohérentes : s'appuyer fortement sur la courbe de l'émetteur.",
+      "preuve": "k = 0.773 ; poids de l'émetteur avec 1, 3 et 10 obligations : [0.56, 0.8, 0.93].",
+      "condition": {}
+    },
+    {
+      "id": "R02",
+      "type": "structure",
+      "consigne": "Variables qui déterminent le plus le spread : Notation (cran), Émetteur, Séniorité.",
+      "preuve": "Parts de la dispersion expliquées seules : Notation (cran) 85 %, Émetteur 76 %, Séniorité 22 %.",
+      "condition": {}
+    },
+    {
+      "id": "R03",
+      "type": "aiguillage",
+      "consigne": "Obligation investissement (BBB- et mieux), dette subordonnée, émetteur 1 à 2 obligations : utiliser S · ancrage senior.",
+      "preuve": "Erreur médiane 12.57 % contre 13.71 % (52 cas), écart confirmé sur deux moitiés d'émetteurs.",
+      "condition": {
+        "notation": "investissement (BBB- et mieux)",
+        "dette": "subordonnée",
+        "emetteur": "1 à 2 obligations"
+      }
+    },
+    {
+      "id": "R04",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, ESG ESG élevé : pour ce segment, abaisser l'estimation d'environ 10 %.",
+      "preuve": "Écart médian -9.6 % (754 obligations, 116 émetteurs) ; -6.8 % puis -12.1 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "esg": "ESG élevé",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R05",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, ESG ESG faible : pour ce segment, relever l'estimation d'environ 8 %.",
+      "preuve": "Écart médian +8.2 % (1241 obligations, 172 émetteurs) ; +7.0 % puis +9.6 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "esg": "ESG faible",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R06",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, Pays DE · ESG ESG faible : pour ce segment, relever l'estimation d'environ 20 %.",
+      "preuve": "Écart médian +20.5 % (118 obligations, 23 émetteurs) ; +18.5 % puis +22.6 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "pays": "DE",
+        "esg": "ESG faible",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R07",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, Pays US · ESG ESG faible : pour ce segment, relever l'estimation d'environ 19 %.",
+      "preuve": "Écart médian +19.0 % (84 obligations, 21 émetteurs) ; +15.7 % puis +23.4 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "pays": "US",
+        "esg": "ESG faible",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R08",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, Maturité > 15 ans · ESG ESG élevé : pour ce segment, abaisser l'estimation d'environ 15 %.",
+      "preuve": "Écart médian -15.3 % (41 obligations, 33 émetteurs) ; -13.6 % puis -16.4 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "maturite": "> 15 ans",
+        "esg": "ESG élevé",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R09",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, Séniorité SENIOR_NON_PREFERRED · ESG ESG élevé : pour ce segment, abaisser l'estimation d'environ 15 %.",
+      "preuve": "Écart médian -14.5 % (40 obligations, 14 émetteurs) ; -18.2 % puis -10.7 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "seniorite": "SENIOR_NON_PREFERRED",
+        "esg": "ESG élevé",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R10",
+      "type": "poche",
+      "consigne": "Émetteur inconnu, Pays IT · ESG ESG faible : pour ce segment, relever l'estimation d'environ 14 %.",
+      "preuve": "Écart médian +14.3 % (170 obligations, 22 émetteurs) ; +12.0 % puis +16.7 % sur deux moitiés d'émetteurs.",
+      "condition": {
+        "pays": "IT",
+        "esg": "ESG faible",
+        "situation": "émetteur inconnu"
+      }
+    },
+    {
+      "id": "R11",
+      "type": "piste",
+      "consigne": "Effet non capté par la courbe des pairs : ESG ESG élevé (spread réel en dessous de l'estimation). Variable ou interaction à envisager.",
+      "preuve": "Écart médian -7.8 % (726 obligations).",
+      "condition": {
+        "esg": "ESG élevé"
+      }
+    },
+    {
+      "id": "R12",
+      "type": "piste",
+      "consigne": "Effet non capté par la courbe des pairs : ESG ESG faible (spread réel au-dessus de l'estimation). Variable ou interaction à envisager.",
+      "preuve": "Écart médian +6.8 % (1205 obligations).",
+      "condition": {
+        "esg": "ESG faible"
+      }
+    },
+    {
+      "id": "R13",
+      "type": "piste",
+      "consigne": "Effet non capté par la courbe des pairs : Pays DE · ESG ESG faible (spread réel au-dessus de l'estimation). Variable ou interaction à envisager.",
+      "preuve": "Écart médian +20.5 % (109 obligations).",
+      "condition": {
+        "pays": "DE",
+        "esg": "ESG faible"
+      }
+    },
+    {
+      "id": "R14",
+      "type": "piste",
+      "consigne": "Effet non capté par la courbe des pairs : Pays IT · ESG ESG faible (spread réel au-dessus de l'estimation). Variable ou interaction à envisager.",
+      "preuve": "Écart médian +15.4 % (165 obligations).",
+      "condition": {
+        "pays": "IT",
+        "esg": "ESG faible"
+      }
+    },
+    {
+      "id": "R15",
+      "type": "piste",
+      "consigne": "Effet non capté par la courbe des pairs : Pays US · ESG ESG faible (spread réel au-dessus de l'estimation). Variable ou interaction à envisager.",
+      "preuve": "Écart médian +17.0 % (84 obligations).",
+      "condition": {
+        "pays": "US",
+        "esg": "ESG faible"
+      }
+    },
+    {
+      "id": "R16",
+      "type": "colonnes",
+      "consigne": "Colonnes supplémentaires à utiliser : esg.",
+      "preuve": "ESG : renseignée à 100 % ; erreur -11.5 % (émetteur connu), -10.0 % (émetteur inconnu) → à activer. Ancienneté de l'émission : renseignée à 100 % ; erreur -0.8 % (émetteur connu), -0.0 % (émetteur inconnu) → inutile. Duration : renseignée à 100 % ; erreur -5.2 % (émetteur connu), -5.3 % (émetteur inconnu) → gain suspect : fuite probable.",
+      "condition": {}
+    },
+    {
+      "id": "R17",
+      "type": "garde-fou",
+      "consigne": "Ne jamais utiliser le prix ni le rendement de l'obligation estimée pour estimer son spread.",
+      "preuve": "Ils sont liés mécaniquement au spread : les utiliser reviendrait à recalculer la cotation.",
+      "condition": {}
+    }
+  ]
+}

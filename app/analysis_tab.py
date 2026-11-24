@@ -528,6 +528,54 @@ def _quality_section(estimator, version: str, mode: str) -> None:
                    "dispersion des spreads (en log) que le modèle explique hors échantillon.")
 
 
+@st.cache_data(show_spinner="Recherche des motifs (environ une minute)…")
+def _brief(_estimator, version: str) -> dict:
+    from bondalorians.analysis.agent_brief import build_brief
+
+    return build_brief(_estimator)
+
+
+def _patterns_section(estimator, version: str) -> None:
+    import json
+
+    brief = _brief(estimator, version)
+    st.markdown("#### Ce que la base et le backtest ont appris")
+    st.caption(
+        "Fiche destinée à des agents (outil MCP `agent_brief`, ou fichier JSON ci-dessous). **Aiguillage** : pour "
+        "chaque cas, la méthode qui se trompe le moins, retenue seulement si l'écart est net et confirmé sur deux "
+        "moitiés d'émetteurs indépendantes. **Poches** : segments où l'estimation se trompe toujours dans le même "
+        "sens, après correction pour le nombre de segments testés et réplication sur les deux moitiés."
+    )
+    st.download_button("Télécharger la fiche (JSON)", json.dumps(brief, ensure_ascii=False, indent=2, default=str),
+                       file_name="fiche_agents.json", mime="application/json")
+    rules = pd.DataFrame(brief["regles"])[["id", "type", "consigne", "preuve"]]
+    st.markdown("**Règles**")
+    st.dataframe(rules.rename(columns={"id": "N°", "type": "Type", "consigne": "Consigne", "preuve": "Preuve"}),
+                 hide_index=True, width="stretch")
+    st.markdown("**Aiguillage**")
+    routing = pd.DataFrame(brief["aiguillage"])
+    st.dataframe(routing[["notation", "dette", "emetteur", "cas", "erreur_actuelle_pct", "meilleure_methode",
+                          "erreur_meilleure_pct", "methode_recommandee", "couverture_intervalle", "facteur_intervalle"]]
+                 .rename(columns={"notation": "Notation", "dette": "Dette", "emetteur": "Émetteur", "cas": "Cas",
+                                  "erreur_actuelle_pct": "Erreur actuelle (%)", "meilleure_methode": "Meilleure méthode",
+                                  "erreur_meilleure_pct": "Son erreur (%)", "methode_recommandee": "Recommandation",
+                                  "couverture_intervalle": "Couverture", "facteur_intervalle": "Facteur d'intervalle"}),
+                 hide_index=True, width="stretch")
+    pockets = pd.DataFrame(brief["poches"])
+    st.markdown(f"**Poches de biais de l'estimation retenue ({len(pockets)})**")
+    if pockets.empty:
+        st.caption("Aucune poche confirmée : l'estimation n'a pas de biais systématique détectable par segment.")
+    else:
+        st.dataframe(pockets[["situation", "segment", "obligations", "emetteurs", "ecart_pct", "ecart_decouverte_pct",
+                              "ecart_confirmation_pct", "action"]].rename(columns={
+                                  "situation": "Situation", "segment": "Segment", "obligations": "Obligations",
+                                  "emetteurs": "Émetteurs", "ecart_pct": "Écart (%)",
+                                  "ecart_decouverte_pct": "Moitié 1 (%)", "ecart_confirmation_pct": "Moitié 2 (%)",
+                                  "action": "Action"}).round(1), hide_index=True, width="stretch")
+        st.caption("Écart = spread réel par rapport à l'estimation, médiane du segment. Les croisements de deux "
+                   "variables reposent sur moins d'émetteurs : à traiter avec plus de prudence que les effets simples.")
+
+
 def _clustering_section(estimator, version: str, result: dict | None, mode: str) -> None:
     st.markdown("#### Familles d'obligations (clustering)")
     st.caption(
@@ -685,7 +733,7 @@ def render(service, result: dict | None) -> None:
                                file_name="analyses_bondalorians.md", mime="text/markdown")
     section = st.segmented_control(
         "Partie", ["Échantillon", "Modèles un par un", "Comparaison et confiance", "Qualité et validation",
-                   "Clustering"],
+                   "Motifs pour les agents", "Clustering"],
         default="Échantillon", required=True, key="analysis_section", label_visibility="collapsed")
     if section != "Échantillon" and importlib.util.find_spec("sklearn") is None:
         # scikit-learn manque dans le Python qui fait tourner l'interface : on donne la
@@ -705,5 +753,7 @@ def render(service, result: dict | None) -> None:
         _comparison_section(estimator, version, mode)
     elif section == "Qualité et validation":
         _quality_section(estimator, version, mode)
+    elif section == "Motifs pour les agents":
+        _patterns_section(estimator, version)
     elif section == "Clustering":
         _clustering_section(estimator, version, result, mode)

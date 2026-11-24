@@ -154,6 +154,21 @@ def model_quality(include_forest: bool = True) -> dict:
 
 
 @mcp.tool()
+def agent_brief() -> dict:
+    """Fiche de connaissances : structure des spreads, table d'aiguillage (méthode à utiliser et facteur
+    d'intervalle par cas), poches de biais confirmées, colonnes utiles, règles chiffrées. À lire avant
+    d'estimer. Le premier appel prend environ une minute."""
+    return service().agent_brief()
+
+
+@mcp.tool()
+def patterns_for_bond(isin: str | None = None, characteristics: dict | None = None) -> dict:
+    """Ce que la fiche dit d'une obligation précise : sa case d'aiguillage, les poches qui la concernent
+    et les règles applicables."""
+    return service().patterns_for_bond(_bond(isin, characteristics))
+
+
+@mcp.tool()
 def analysis_report(run_id: str | None = None, include_forest: bool = True) -> str:
     """Rapport Markdown complet des analyses (consigne d'interprétation, glossaire, constats,
     tableaux), avec l'obligation d'une estimation si run_id est donné. Prend environ 30 secondes."""

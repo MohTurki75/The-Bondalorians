@@ -102,7 +102,8 @@ class ZSpreadEstimator:
     def fit_base(self, df: pd.DataFrame) -> None:
         self.df_ = df.reset_index(drop=True)
         curve = self.settings["peer_curve"]
-        self.peer_ = PeerCurve(curve["ridge"], enriched=curve.get("enriched", False)).fit(self.df_)
+        self.peer_ = PeerCurve(curve["ridge"], enriched=curve.get("enriched", False),
+                               extra=tuple(curve.get("extra", []))).fit(self.df_)
         self.a_ = {c: self.df_[c].to_numpy(dtype=object) for c in _ARRAYS_OBJECT}
         self.a_.update({c: self.df_[c].to_numpy(dtype=float) for c in _ARRAYS_FLOAT})
         self.a_["resid"] = np.log(self.a_["z_spread"]) - self.peer_.predict_log(self.df_)

@@ -1,0 +1,70 @@
+# Correspondance fixe pour l'export Bloomberg de la base du hackathon (colonnes en français, sans accents).
+# scripts/jour1.py la reconnaît seul (format « bloomberg_fr ») ; ce fichier sert pour PostgreSQL :
+#   cp config/schema_map_bloomberg.yaml config/schema_map.yaml   puis adapter source.query.
+#
+# Points d'attention :
+# - issuer = ticker : la colonne nomemetteur contient le nom de l'OBLIGATION (« RZR 1 ⅜ 11/02/36 »).
+# - pricing_date : deux dates de prix dans la base. Chaque ligne est valorisée à sa date ; une seule date
+#   sert à estimer (la plus récente par défaut), l'autre à mesurer le mouvement du marché.
+# - maturity_date = datematurit_pricingobligation (échéance de calcul du Z-Spread, call si coté au call) ;
+#   datematurit = échéance finale, sert à juger si le call est utile.
+# - callable : « CALLABLE » ne compte que si le prochain call tombe plus d'un an avant l'échéance finale
+#   (sinon simple call au pair de fin de vie, sans effet sur le spread).
+# - prixbid, rendement, discountmargenextcall : contrôles seulement, jamais variables du modèle.
+# - durationbid : calculée au rendement de marché, donc avec le spread ; fuite probable si activée.
+# - niveaumid, nomgroupeindustrie, classificationsecteuremetteur, premieredatesettlement : non utilisées.
+
+source:
+  query: "SELECT * FROM <schema>.<table>"
+  as_of: null
+  format: bloomberg_fr
+
+columns:
+  pricing_date: pricing_date
+  isin: id
+  issuer: ticker
+  sector: nomsecteur
+  industry: industrieemetteur
+  sector_family: classificationsecteuremetteurniv1
+  structure: structureaffaire
+  country: paysemetteur
+  currency: devise
+  rating: ratingmoyen
+  seniority: rangseniorit_obligation
+  coupon_type: typecoupon
+  callable: typematurit
+  maturity_years: null
+  maturity_date: datematurit_pricingobligation
+  final_maturity_date: datematurit
+  call_date: prochainedatecall
+  issue_date: dateemission
+  amount_outstanding: null
+  z_spread: niveauzspread
+  green: greenbond
+  social: socialbond
+  bail_in: bondbailin
+  esg: null
+  duration: durationbid
+  price: prixbid
+  ytm: rendement
+  discount_margin: discountmargenextcall
+
+values:
+  seniority:
+    "Sr Unsecured": SENIOR_UNSECURED
+    "Unsecured": SENIOR_UNSECURED
+    "Sr Preferred": SENIOR_PREFERRED
+    "Sr Non Preferred": SENIOR_NON_PREFERRED
+    "Secured": SECURED
+    "1st lien": SECURED
+    "2nd lien": SECURED
+    "Sr Subordinated": SUBORDINATED
+    "Subordinated": SUBORDINATED
+    "Jr Subordinated": SUBORDINATED
+    "Tier 2": TIER2
+    "AT1": AT1
+  coupon_type:
+    "FIXED": FIXED
+    "FLOATING": FLOATING
+    "VARIABLE": FLOATING
+    "ZERO COUPON": ZERO

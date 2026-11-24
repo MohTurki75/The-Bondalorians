@@ -6,6 +6,7 @@ Tout le code en aval ne connaît que ces noms de colonnes.
 from __future__ import annotations
 
 import math
+import re
 
 import numpy as np
 import pandas as pd
@@ -44,7 +45,26 @@ def to_notch(rating) -> float:
     """Convertit une notation S&P, Fitch ou Moody's en cran numérique (1 = AAA)."""
     if rating is None or (isinstance(rating, float) and math.isnan(rating)):
         return float("nan")
-    return float(NOTCH.get(str(rating).strip().upper(), float("nan")))
+    text = str(rating).strip().upper()
+    if text in NOTCH:
+        return float(NOTCH[text])
+    # Formes courantes en base : « BBB+ (S&P) », « Baa1 *- », « A- /NEG », « (P)A2 », « BBB+u ».
+    for token in re.split(r"[\s/(),;:]+", text.replace("(P)", " ")):
+        token = re.sub(r"(\*[-+]?|U)$", "", token)  # « BBB+u », « BBB-*- » (sous surveillance)
+        if token in NOTCH:
+            return float(NOTCH[token])
+    return float("nan")
+
+
+MSCI_ESG = {"AAA": 7, "AA": 6, "A": 5, "BBB": 4, "BB": 3, "B": 2, "CCC": 1}
+
+
+def esg_to_score(series: pd.Series) -> pd.Series:
+    """Note ESG en nombre : lettres MSCI (AAA = 7 … CCC = 1) ou score numérique tel quel."""
+    text = series.astype(str).str.strip().str.upper()
+    letters = text.map(MSCI_ESG)
+    numbers = pd.to_numeric(series, errors="coerce")
+    return letters.where(letters.notna(), numbers).astype(float)
 
 
 def prepare(frame: pd.DataFrame, require_target: bool) -> pd.DataFrame:
@@ -81,6 +101,21 @@ def prepare(frame: pd.DataFrame, require_target: bool) -> pd.DataFrame:
     dropped = int((~valid).sum())
     df = df[valid].reset_index(drop=True)
     df["log_t"] = np.log(df["maturity_years"].astype(float))
+    # Colonnes supplémentaires éventuelles (jour 1) : converties en nombres si présentes.
+    if "esg" in df.columns:
+        df["esg_score"] = esg_to_score(df["esg"])
+    for column in ("age_years", "duration", "price", "ytm", "call_ratio", "years_to_call"):
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+    for column in ("industry", "sector_family", "structure", "bail_in"):
+        if column in df.columns:
+            df[column] = df[column].astype("object").where(df[column].notna(), "NA").astype(str)
+    if "green" in df.columns:
+        df["green_flag"] = df["green"].map(lambda v: float(bool(v)) if pd.notna(v) else np.nan)
+    if "structure" in df.columns:
+        # Holdco : subordination structurelle (dette de la holding, payée après celle des filiales).
+        text = df["structure"].str.lower()
+        df["holdco_flag"] = np.where(text.str.contains("holdco"), 1.0, np.where(text.str.contains("opco"), 0.0, np.nan))
     if "obs_weight" not in df.columns:
         df["obs_weight"] = 1.0
     df.attrs["dropped"] = dropped

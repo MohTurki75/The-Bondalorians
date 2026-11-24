@@ -51,6 +51,8 @@ la courbe émetteur, poids de distance des comparables, champion, confiance.
     python scripts/ablation.py --ml         # effet de chaque amélioration
     python scripts/export_analyses.py       # rapport Markdown des analyses, pour un LLM
     python scripts/qualite.py               # indicateurs et tests de chaque modèle
+    python scripts/jour1.py --csv base.csv  # jour 1 : correspondance des colonnes, profil, colonnes en plus
+    python scripts/motifs.py data/base_jour1.csv   # fiche pour les agents : aiguillage, poches, règles
     pytest
 
 Interface de démonstration :
@@ -73,7 +75,9 @@ Serveur MCP sur PostgreSQL (jour 1) :
 
 ## Le jour 1
 
-Le seul fichier à adapter au schéma réel est `config/schema_map.yaml`. Les
+Le seul fichier à adapter au schéma réel est `config/schema_map.yaml`.
+`scripts/jour1.py` le propose automatiquement (voir docs/LANCEMENT.md) ; l'export Bloomberg à deux
+dates de prix est reconnu tel quel (`config/schema_map_bloomberg.yaml`). Les
 paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 
 ## Structure
@@ -99,7 +103,7 @@ paramètres métier (paliers, poids, seuils) sont dans `config/settings.yaml`.
 `find_comparables`, `estimate_zspread`, `validate_estimate`,
 `explain_estimate`, `submit_feedback`, `get_run`, `backtest_summary`,
 `calibration_report`, `analyze_sample`, `analyze_models`, `analyze_comparables`,
-`analyze_clusters`, `analysis_report`, `model_quality`.
+`analyze_clusters`, `analysis_report`, `model_quality`, `agent_brief`, `patterns_for_bond`.
 
 ## État
 

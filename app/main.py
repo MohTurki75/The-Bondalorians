@@ -354,6 +354,12 @@ with tab_estimate:
             maturity = c7.number_input("Maturité résiduelle (ans)", min_value=0.1, max_value=50.0, value=5.0, step=0.5)
             coupon = c8.selectbox("Type de coupon", sorted(real["coupon_type"].unique()))
             callable_ = c9.checkbox("Remboursable par anticipation")
+            esg = None
+            if "esg" in real.columns and real["esg"].notna().any():
+                # Note ESG (si la base en contient une) : n'agit que si peer_curve.extra contient « esg ».
+                esg_values = sorted(real["esg"].dropna().astype(str).unique())
+                esg = st.selectbox("Note ESG", ["(inconnue)"] + esg_values)
+                esg = None if esg == "(inconnue)" else esg
             if st.form_submit_button("Estimer", type="primary"):
                 if not issuer:
                     st.error("Indiquez un émetteur.")
@@ -363,6 +369,8 @@ with tab_estimate:
                         "rating": rating, "seniority": seniority, "maturity_years": maturity,
                         "coupon_type": coupon, "callable": callable_,
                     }
+                    if esg is not None:
+                        bond["esg"] = esg
     if bond is not None:
         try:
             st.session_state["result"] = service.estimate(bond)
